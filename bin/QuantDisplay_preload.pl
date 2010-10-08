@@ -7,12 +7,15 @@ use warnings;
 use Bio::DB::GFF;
 use Getopt::Std;
 use Data::Dumper;
+use Digest::MD5 qw/md5/;
+use String::CRC;
 #use BerkeleyDB;
 use vars qw/ $opt_f $opt_h $opt_d $opt_v $opt_M $opt_o $opt_i $opt_p $opt_c $opt_r $opt_z /;
 
 getopts('f:hdvMo:ipc:r:z:');
 
 my ($file,$help,$debug,$verbose,$fuzzy) = ($opt_f,$opt_h,$opt_d,$opt_v,$opt_z);
+my $scorecall = $opt_c || 6;
 my $maxlength = 150;
 
 # print "file = '$file'\n";
@@ -52,13 +55,6 @@ if (!$file && !$opt_i) {
     exit();
 }
 
-# my $db = Bio::DB::GFF->new(
-#                                                       -adaptor    =>  'memory',
-#                                                       -gff            =>  $file,
-#                                                   );
-# 
-# print "\$db isa '", ref($db), "'\n";
-
 my (%db,%fcount) = ();
 
 if ($opt_M) {
@@ -66,11 +62,6 @@ if ($opt_M) {
     print "tying hash to BerkeleyDB\n" if ($verbose);
     my $tmpdir = $ENV{TMPDIR} || "/tmp";
     my $dbfile = "$tmpdir/QDpreload";
-    
-#   eval {
-#       require BerkeleyDB;
-#       import BerkeleyDB;
-#   };
     
     if ($@) {
         print "can't find BerkeleyDB, looking for DB_File\n" if ($verbose);
@@ -132,59 +123,72 @@ if (!$outfile) {
 open(OUT,">$outfile") or die "can't open QDpreload.gff: $!";
 
 my $line_count;
+#my ($refmol,$source,$type,$score,$phase,$group);
+my ($refmol,$source,$type,%reftrack);
+my @db = ();
 while (<IN>) {
     ++$line_count;
     my $line = $_;
-    my @values = split /\t/, $line;
     chomp($line);
-    my ($start,$stop,$diff,$strand) = ($values[3],$values[4],$values[4]-$values[3],$values[6]);
-#   print "start = $start, stop = $stop\n";
-#   print "diff = $diff\n" if ($line_count == 1);
-#   print "diff = $diff\n" if ($diff != 31);
+    my @values = split /\t/, $line;
+#    my ($start,$stop,$diff,$strand) = ($values[3],$values[4],$values[4]-$values[3],$values[6]);
+#    ($refmol,$source,$type) = ($values[0],$values[1],$values[2]);# if ($line_count == 1);
+#    my ($score,$phase,$group) = ($values[$scorecall-1],$values[7],$values[8]);
 
-#   my $pk = pack("a10I3",$values[0],$start,$stop, $strand eq '+' ? 1 : 2);
-    my $pk = "$values[0];$start;$stop;$strand";
-#
-# 
+    if (!$reftrack{$values[0]} || eof) {
+        write_to_file(\%db,$refmol,$source,$type);
+#        write_to_file(\%db);
+        %db = ();
+    }
+    my ($start,$stop,$diff,$strand) = ($values[3],$values[4],$values[4]-$values[3],$values[6]);
+    ($refmol,$source,$type) = ($values[0],$values[1],$values[2]);# if ($line_count == 1);
+    my ($score,$phase,$group) = ($values[$scorecall-1],$values[7],$values[8]);
+    ++$reftrack{$refmol};
+
+    my $pk = "$values[0]$start$stop$strand";
+#    my $pk = unpack("LL",crc($idstr,16));
+#    my $pk = crc($idstr,24);
+#    print "$idstr\t";
+#    print "\$pk = '$pk', \$low = '$low'\n";
+#    print "\$pk = '$pk'\n";
+#    exit() if ($line_count == 1);
     if ($opt_M) {
         $db{$pk} = $line;
     } else {
 #       $db{$pk}[0] = $line;
     }
 
-    #my @pk = unpack("A10I2",$pk);
-
-#   my $pk = oct($values[0])|$start|$stop;
-#   my @pk = $start&$stop;
-#   @pk = unpack('C*',$values[0]);
-#   my $pk = pack "C8", @pk;
-#   if ($line_count <= 5) {
-#       print "\$pk = '$pk', \@pk = '", join ':', @pk, "\n";
-#   } else {
-#       last;
-#   }
-
-#   if ($db{$pk}) {
-#       print "duplicate coords: $start - $stop : $db{$pk}\n";
-#   }
     if ($opt_M) {
         $fcount{$pk}++;
     } else {
-#       $db{$pk}[1]++;
-#       $db{$pk}[0]++;
-        $db{$pk}++;
+#        $db[$pk][0]++;
+#        $db{$pk}++;
+#        $db{$pk}[0]++;
+        $db{$pk}{tally}++;
+        if ($db{$pk}{tally} == 1) {
+#        if ($db{$pk}[0] == 1) {
+#        if ($db[$pk][0] == 1) {
+            $db{$pk}{coords} = [$start,$stop];
+#            $db{$pk}{coords} = "$start,$stop";
+#            $db{$pk}[1] = "$start,$stop";
+#            $db{$pk}[1] = [$start,$stop];
+#            $db[$pk][1] = "$start,$stop";
+            $db{$pk}{data} = [$score,$phase,$group,$strand];
+#            $db{$pk}{data} = "$score,$phase,$group,$strand";
+#            $db{$pk}[2] = "$score,$phase,$group,$strand";
+#            $db[$pk][2] = "$score,$phase,$group,$strand";
+        }
     }
 
     last if ($debug && $line_count == 5);
     if ($verbose) {
-#       print "line count: $line_count\n" if ($line_count % 10000 == 0);
         print "line count: $line_count\n" if ($line_count % 100000 == 0);
     }
 }
 
-print "# of keys: ", scalar(keys %db), "\n" if ($verbose);
-#sleep(10);
-print "tallies collected\nfilling output file\n" if ($verbose);
+#print "# of keys: ", scalar(keys %db), "\n" if ($verbose);
+print "# of keys: ", scalar(keys %db), "\n";# if ($verbose);
+#print "tallies collected\nfilling output file\n" if ($verbose);
 
 my %collapsed = ();
 if ($fuzzy) {
@@ -196,8 +200,6 @@ if ($fuzzy) {
         print "key: '$key'\tvalue: '$db{$key}'\n";
         my @values = split /;/, $key;
         print "@values\n\n";
-#        $hofa{$values[0] . $values[3]}->[$values[1]][$values[2]] = $db{$key};
-#        $hofa{$values[0] . $values[3]}[$values[1]][$values[2]] = $db{$key};
         $hofa{$values[0] . $values[3]}[$values[1]] = [$values[2], $db{$key}];
     }
     #print Dumper(%hofa);
@@ -236,54 +238,56 @@ if ($fuzzy) {
     }
 }
 
-seek IN, 0, 0;
-my %track = ();
-while (<IN>) {
-    my $line = $_;
-    chomp($line);
-    my @values = split /\t/, $line;
-    chomp($line);
-    my ($start,$stop,$diff,$strand) = ($values[3],$values[4],$values[4]-$values[3],$values[6]);
-    my $pk = "$values[0];$start;$stop;$strand";
+#my ($tcnt,$ecnt) = (0,0);
+#foreach my $d (@db) {
+#    ++$tcnt;
+#    next unless (defined($d->[0]));
+#    ++$ecnt;
+#}
+#print "tcnt = $tcnt, ecnt = $ecnt\n";
 
-    unless ($track{$pk}) { # unless we've already seen a read like this before ...
-        if ($db{$pk}) {
-            $values[8] =~ s/;.+;$/;/ unless ($opt_p);
-            if (!$opt_c) {
-                $values[8] .= " QDcount $db{$pk}" . ";";
-            } else {
-                my $QDval = $values[$opt_c - 1];
-                $values[$opt_c - 1] = $opt_r if ($opt_r);
-#               $QDval =~ s/\.\d+//; # not sure why I need to do this
-                $values[8] .= " QDcount " . sprintf("%.6f",$QDval) . ";" unless (!$QDval || $QDval eq '.' || $QDval == 0);
-            }
-#           print OUT "$line QDcount $db{$pk}\n";
-#           print OUT join "\t", @values, " QDcount $db{$pk}\n";
-            print OUT join "\t", @values, "\n";
-        } else {
-            print STDERR "Not found: $values[0] - $start - $stop - $strand\n";
-        }
-    }
-    $track{$pk}++; # increment this so we don't duplicate the data at entry to unless {}
-}
+#foreach my $key (sort { $db{$a}{coords}->[0] <=> $db{$b}{coords}->[0] } keys %db) {
+#    
+#    $db{$key}{data}->[2] =~ s/;.+;$/;/ unless ($opt_p);
+#    if (!$opt_c) {
+#        $db{$key}{data}->[2] .= " QDcount $db{$key}{tally}" . ";"; 
+#    } else {
+#        my $QDval = $db{$key}{data}->[0];
+#        $db{$key}{data}->[0] = $opt_r if ($opt_r);
+#        $db{$key}{data}->[2] .= " QDcount " . sprintf("%.6f",$QDval) . ";" unless (!$QDval || $QDval eq '.' || $QDval == 0);
+#    }
+#    print OUT "$refmol\t$source\t$type\t" . $db{$key}{coords}->[0] . "\t" . $db{$key}{coords}->[1] . "\t" . $db{$key}{data}->[0] . "\t" . $db{$key}{data}->[3] . "\t" . $db{$key}{data}->[1] . "\t" . $db{$key}{data}->[2] . "\n";
+#}
 
+#seek IN, 0, 0;
+#my %track = ();
+#while (<IN>) {
+#    my $line = $_;
+#    chomp($line);
+#    my @values = split /\t/, $line;
+#    chomp($line);
+#    my ($start,$stop,$diff,$strand) = ($values[3],$values[4],$values[4]-$values[3],$values[6]);
+#    my $pk = "$values[0];$start;$stop;$strand";
+#
+#    unless ($track{$pk}) { # unless we've already seen a read like this before ...
+#        if ($db{$pk}{tally}) {
+#            $values[8] =~ s/;.+;$/;/ unless ($opt_p);
+#            if (!$opt_c) {
+#                $values[8] .= " QDcount $db{$pk}{tally}" . ";";
+#            } else {
+#                my $QDval = $values[$opt_c - 1];
+#                $values[$opt_c - 1] = $opt_r if ($opt_r);
+##               $QDval =~ s/\.\d+//; # not sure why I need to do this
+#                $values[8] .= " QDcount " . sprintf("%.6f",$QDval) . ";" unless (!$QDval || $QDval eq '.' || $QDval == 0);
+#            }
+#            print OUT join "\t", @values, "\n";
+#        } else {
+#            print STDERR "Not found: $values[0] - $start - $stop - $strand\n";
+#        }
+#    }
+#    $track{$pk}++; # increment this so we don't duplicate the data at entry to unless {}
+#}
 
-# foreach my $key (keys %db) {
-#   #my ($refmol,$start,$stop) = unpack("A10I2",$key);
-#   #$refmol =~ s/\0//g;
-#   #print "$refmol\t$start\t$stop\t$db{$key}\n";
-#   if ($opt_M) {
-#       print OUT "$db{$key} QDcount $fcount{$key};\n";
-#   } else {
-# #     print OUT $db{$key}[0] . " QDcount " . $db{$key}[1] . ";\n";
-# 
-# #     my @ukey = unpack("a10I3",$key);
-#       my @ukey = split /;/, $key;
-# #     print OUT "'" . join ' ', @ukey . "'\t" . $db{$key}[0] . "\n";
-# #     print OUT "'@ukey'\t" . $db{$key}[0] . "\n";
-#       print OUT "'@ukey'\t" . $db{$key} . "\n";
-#   }
-# }
 
 print "finished\n\n" if ($verbose);
 
@@ -305,4 +309,22 @@ sub assigned {
     }
     print "returning '$sum' from sum()\n";
     return $sum;
+}
+
+sub write_to_file {
+    my $db = shift;
+    my($refmol,$source,$type) = @_;    
+#    foreach my $key (sort { $db{$a}{coords}->[0] <=> $db{$b}{coords}->[0] } keys %db) {
+    foreach my $key (sort { $db->{$a}{coords}->[0] <=> $db->{$b}{coords}->[0] } keys %$db) {
+        
+        $db->{$key}{data}->[2] =~ s/;.+;$/;/ unless ($opt_p);
+        if (!$opt_c) {
+            $db->{$key}{data}->[2] .= " QDcount $db->{$key}{tally}" . ";"; 
+        } else {
+            my $QDval = $db->{$key}{data}->[0];
+            $db{$key}->{data}->[0] = $opt_r if ($opt_r);
+            $db{$key}->{data}->[2] .= " QDcount " . sprintf("%.6f",$QDval) . ";" unless (!$QDval || $QDval eq '.' || $QDval == 0);
+        }
+        print OUT "$refmol\t$source\t$type\t" . $db->{$key}{coords}->[0] . "\t" . $db->{$key}{coords}->[1] . "\t" . $db->{$key}{data}->[0] . "\t" . $db->{$key}{data}->[3] . "\t" . $db->{$key}{data}->[1] . "\t" . $db->{$key}{data}->[2] . "\n";
+    }
 }
