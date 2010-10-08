@@ -6,12 +6,14 @@ use strict;
 use warnings;
 use Bio::DB::GFF;
 use Getopt::Std;
+use Data::Dumper;
 #use BerkeleyDB;
-use vars qw/ $opt_f $opt_h $opt_d $opt_v $opt_M $opt_o $opt_i $opt_p $opt_c $opt_r /;
+use vars qw/ $opt_f $opt_h $opt_d $opt_v $opt_M $opt_o $opt_i $opt_p $opt_c $opt_r $opt_z /;
 
-getopts('f:hdvMo:ipc:r:');
+getopts('f:hdvMo:ipc:r:z:');
 
-my ($file,$help,$debug,$verbose) = ($opt_f,$opt_h,$opt_d,$opt_v);
+my ($file,$help,$debug,$verbose,$fuzzy) = ($opt_f,$opt_h,$opt_d,$opt_v,$opt_z);
+my $maxlength = 150;
 
 # print "file = '$file'\n";
 # print "help = '$help'\n";
@@ -33,7 +35,7 @@ options
 -h      print this help menu
 -v      verbose output to terminal
 -f      input GFF file name
--i      read from STDIN
+-i      read from STDIN (this doesn't work yet)
 -p      preserve all data from original file, otherwise truncates last column
 -c      use the value in this column for QDcount
 -r      when using -c, replace that column with this value (typically -r '.')
@@ -184,6 +186,55 @@ print "# of keys: ", scalar(keys %db), "\n" if ($verbose);
 #sleep(10);
 print "tallies collected\nfilling output file\n" if ($verbose);
 
+my %collapsed = ();
+if ($fuzzy) {
+    my %hofa = (); # hash of array references
+    #
+    # collapse data structure based on fuzzy start/stop coordinates
+    #
+    foreach my $key (keys %db) {
+        print "key: '$key'\tvalue: '$db{$key}'\n";
+        my @values = split /;/, $key;
+        print "@values\n\n";
+#        $hofa{$values[0] . $values[3]}->[$values[1]][$values[2]] = $db{$key};
+#        $hofa{$values[0] . $values[3]}[$values[1]][$values[2]] = $db{$key};
+        $hofa{$values[0] . $values[3]}[$values[1]] = [$values[2], $db{$key}];
+    }
+    #print Dumper(%hofa);
+
+#    if ($hofa{'chr1-'}->[1072][1113]) {
+#        print "chr1-:1072-1113 = " . $hofa{'chr1-'}->[1072][1113] . "\n";
+#    }
+    
+    foreach my $key (keys %hofa) {
+        print "refmol $key\n";
+        my $aref = $hofa{$key};
+        print "\$aref isa '", ref($aref), "'\n";
+        my $alength = scalar(@$aref);
+        print "\$alength = '$alength'\n";
+        for (my $i = $fuzzy; $i < $alength; ++$i) {
+#
+            my $stop;
+            my $h = $i+$fuzzy;
+#
+            if ($aref->[$i]) {
+                print "valid element at index $i\n";
+                print "start: $i\tstop: $hofa{$key}[$i][0] -- $hofa{$key}[$i][1]\n";
+                if (assigned(@$aref[$i..$h]) > 1) {
+                    print "will collapse multiple reads betw $i and $h\n";
+
+                    foreach my $scoord ($i+1..$h) {
+                        print "\$scoord: $scoord\n";
+                        if ($hofa{$key}[$scoord][0] && ($hofa{$key}[$scoord][0] - $hofa{$key}[$i][0] <= $fuzzy)) {
+                        
+                        }
+                    }
+                }
+                print "\n\n";
+            }
+        }
+    }
+}
 
 seek IN, 0, 0;
 my %track = ();
@@ -195,7 +246,7 @@ while (<IN>) {
     my ($start,$stop,$diff,$strand) = ($values[3],$values[4],$values[4]-$values[3],$values[6]);
     my $pk = "$values[0];$start;$stop;$strand";
 
-    unless ($track{$pk}) {
+    unless ($track{$pk}) { # unless we've already seen a read like this before ...
         if ($db{$pk}) {
             $values[8] =~ s/;.+;$/;/ unless ($opt_p);
             if (!$opt_c) {
@@ -213,7 +264,7 @@ while (<IN>) {
             print STDERR "Not found: $values[0] - $start - $stop - $strand\n";
         }
     }
-    $track{$pk}++;
+    $track{$pk}++; # increment this so we don't duplicate the data at entry to unless {}
 }
 
 
@@ -240,4 +291,18 @@ untie(%db) if ($opt_M);
 close(IN) or warn("can't close 'IN': $!");
 close(OUT) or warn("can't close 'OUT': $!");
 
-
+sub assigned {
+#    print "sum() called\n";
+#    print "number of arguments: ", scalar(@_), "\n";
+#    print "@_\n";
+    my $sum = 0;
+    my @a = @_;
+#    print "\@a isa '", ref(@a), "'\n";
+    foreach my $element (@_) {
+        next unless (defined($element) && $element->[0]);
+        print "\$element = '$element' [",ref($element),"]\n";
+        ++$sum;
+    }
+    print "returning '$sum' from sum()\n";
+    return $sum;
+}
