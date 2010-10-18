@@ -1,14 +1,12 @@
 #!/usr/bin/perl
 #
-# $Id: QuantDisplay_preload.pl,v 3.2 2008/10/28 21:50:30 givans Exp $
+#
 #
 use strict;
 use warnings;
 use Bio::DB::GFF;
 use Getopt::Std;
 use Data::Dumper;
-use Digest::MD5 qw/md5/;
-use String::CRC;
 #use BerkeleyDB;
 use vars qw/ $opt_f $opt_h $opt_d $opt_v $opt_M $opt_o $opt_i $opt_p $opt_c $opt_r $opt_z /;
 
@@ -131,13 +129,10 @@ while (<IN>) {
     my $line = $_;
     chomp($line);
     my @values = split /\t/, $line;
-#    my ($start,$stop,$diff,$strand) = ($values[3],$values[4],$values[4]-$values[3],$values[6]);
-#    ($refmol,$source,$type) = ($values[0],$values[1],$values[2]);# if ($line_count == 1);
-#    my ($score,$phase,$group) = ($values[$scorecall-1],$values[7],$values[8]);
 
     if (!$reftrack{$values[0]} || eof) {
+        collapse() if ($fuzzy);
         write_to_file(\%db,$refmol,$source,$type);
-#        write_to_file(\%db);
         %db = ();
     }
     my ($start,$stop,$diff,$strand) = ($values[3],$values[4],$values[4]-$values[3],$values[6]);
@@ -146,12 +141,6 @@ while (<IN>) {
     ++$reftrack{$refmol};
 
     my $pk = "$values[0]$start$stop$strand";
-#    my $pk = unpack("LL",crc($idstr,16));
-#    my $pk = crc($idstr,24);
-#    print "$idstr\t";
-#    print "\$pk = '$pk', \$low = '$low'\n";
-#    print "\$pk = '$pk'\n";
-#    exit() if ($line_count == 1);
     if ($opt_M) {
         $db{$pk} = $line;
     } else {
@@ -161,22 +150,10 @@ while (<IN>) {
     if ($opt_M) {
         $fcount{$pk}++;
     } else {
-#        $db[$pk][0]++;
-#        $db{$pk}++;
-#        $db{$pk}[0]++;
         $db{$pk}{tally}++;
         if ($db{$pk}{tally} == 1) {
-#        if ($db{$pk}[0] == 1) {
-#        if ($db[$pk][0] == 1) {
             $db{$pk}{coords} = [$start,$stop];
-#            $db{$pk}{coords} = "$start,$stop";
-#            $db{$pk}[1] = "$start,$stop";
-#            $db{$pk}[1] = [$start,$stop];
-#            $db[$pk][1] = "$start,$stop";
             $db{$pk}{data} = [$score,$phase,$group,$strand];
-#            $db{$pk}{data} = "$score,$phase,$group,$strand";
-#            $db{$pk}[2] = "$score,$phase,$group,$strand";
-#            $db[$pk][2] = "$score,$phase,$group,$strand";
         }
     }
 
@@ -190,8 +167,70 @@ while (<IN>) {
 print "# of keys: ", scalar(keys %db), "\n";# if ($verbose);
 #print "tallies collected\nfilling output file\n" if ($verbose);
 
-my %collapsed = ();
-if ($fuzzy) {
+#my %collapsed = ();
+#if ($fuzzy) {
+#    my %hofa = (); # hash of array references
+#    #
+#    # collapse data structure based on fuzzy start/stop coordinates
+#    #
+#    foreach my $key (keys %db) {
+#        print "key: '$key'\tvalue: '$db{$key}'\n";
+#        my @values = split /;/, $key;
+#        print "@values\n\n";
+#        $hofa{$values[0] . $values[3]}[$values[1]] = [$values[2], $db{$key}];
+#    }
+#    
+#    foreach my $key (keys %hofa) {
+#        print "refmol $key\n";
+#        my $aref = $hofa{$key};
+#        print "\$aref isa '", ref($aref), "'\n";
+#        my $alength = scalar(@$aref);
+#        print "\$alength = '$alength'\n";
+#        for (my $i = $fuzzy; $i < $alength; ++$i) {
+##
+#            my $stop;
+#            my $h = $i+$fuzzy;
+##
+#            if ($aref->[$i]) {
+#                print "valid element at index $i\n";
+#                print "start: $i\tstop: $hofa{$key}[$i][0] -- $hofa{$key}[$i][1]\n";
+#                if (assigned(@$aref[$i..$h]) > 1) {
+#                    print "will collapse multiple reads betw $i and $h\n";
+#
+#                    foreach my $scoord ($i+1..$h) {
+#                        print "\$scoord: $scoord\n";
+#                        if ($hofa{$key}[$scoord][0] && ($hofa{$key}[$scoord][0] - $hofa{$key}[$i][0] <= $fuzzy)) {
+#                        
+#                        }
+#                    }
+#                }
+#                print "\n\n";
+#            }
+#        }
+#    }
+#}
+
+print "finished\n\n" if ($verbose);
+
+untie(%db) if ($opt_M);
+close(IN) or warn("can't close 'IN': $!");
+close(OUT) or warn("can't close 'OUT': $!");
+
+sub assigned {
+    my $sum = 0;
+    my @a = @_;
+    foreach my $element (@_) {
+        next unless (defined($element) && $element->[0]);
+        print "\$element = '$element' [",ref($element),"]\n";
+        ++$sum;
+    }
+    print "returning '$sum' from sum()\n";
+    return $sum;
+}
+
+sub collapse {
+    my $db = shift;
+
     my %hofa = (); # hash of array references
     #
     # collapse data structure based on fuzzy start/stop coordinates
@@ -202,11 +241,6 @@ if ($fuzzy) {
         print "@values\n\n";
         $hofa{$values[0] . $values[3]}[$values[1]] = [$values[2], $db{$key}];
     }
-    #print Dumper(%hofa);
-
-#    if ($hofa{'chr1-'}->[1072][1113]) {
-#        print "chr1-:1072-1113 = " . $hofa{'chr1-'}->[1072][1113] . "\n";
-#    }
     
     foreach my $key (keys %hofa) {
         print "refmol $key\n";
@@ -236,79 +270,7 @@ if ($fuzzy) {
             }
         }
     }
-}
 
-#my ($tcnt,$ecnt) = (0,0);
-#foreach my $d (@db) {
-#    ++$tcnt;
-#    next unless (defined($d->[0]));
-#    ++$ecnt;
-#}
-#print "tcnt = $tcnt, ecnt = $ecnt\n";
-
-#foreach my $key (sort { $db{$a}{coords}->[0] <=> $db{$b}{coords}->[0] } keys %db) {
-#    
-#    $db{$key}{data}->[2] =~ s/;.+;$/;/ unless ($opt_p);
-#    if (!$opt_c) {
-#        $db{$key}{data}->[2] .= " QDcount $db{$key}{tally}" . ";"; 
-#    } else {
-#        my $QDval = $db{$key}{data}->[0];
-#        $db{$key}{data}->[0] = $opt_r if ($opt_r);
-#        $db{$key}{data}->[2] .= " QDcount " . sprintf("%.6f",$QDval) . ";" unless (!$QDval || $QDval eq '.' || $QDval == 0);
-#    }
-#    print OUT "$refmol\t$source\t$type\t" . $db{$key}{coords}->[0] . "\t" . $db{$key}{coords}->[1] . "\t" . $db{$key}{data}->[0] . "\t" . $db{$key}{data}->[3] . "\t" . $db{$key}{data}->[1] . "\t" . $db{$key}{data}->[2] . "\n";
-#}
-
-#seek IN, 0, 0;
-#my %track = ();
-#while (<IN>) {
-#    my $line = $_;
-#    chomp($line);
-#    my @values = split /\t/, $line;
-#    chomp($line);
-#    my ($start,$stop,$diff,$strand) = ($values[3],$values[4],$values[4]-$values[3],$values[6]);
-#    my $pk = "$values[0];$start;$stop;$strand";
-#
-#    unless ($track{$pk}) { # unless we've already seen a read like this before ...
-#        if ($db{$pk}{tally}) {
-#            $values[8] =~ s/;.+;$/;/ unless ($opt_p);
-#            if (!$opt_c) {
-#                $values[8] .= " QDcount $db{$pk}{tally}" . ";";
-#            } else {
-#                my $QDval = $values[$opt_c - 1];
-#                $values[$opt_c - 1] = $opt_r if ($opt_r);
-##               $QDval =~ s/\.\d+//; # not sure why I need to do this
-#                $values[8] .= " QDcount " . sprintf("%.6f",$QDval) . ";" unless (!$QDval || $QDval eq '.' || $QDval == 0);
-#            }
-#            print OUT join "\t", @values, "\n";
-#        } else {
-#            print STDERR "Not found: $values[0] - $start - $stop - $strand\n";
-#        }
-#    }
-#    $track{$pk}++; # increment this so we don't duplicate the data at entry to unless {}
-#}
-
-
-print "finished\n\n" if ($verbose);
-
-untie(%db) if ($opt_M);
-close(IN) or warn("can't close 'IN': $!");
-close(OUT) or warn("can't close 'OUT': $!");
-
-sub assigned {
-#    print "sum() called\n";
-#    print "number of arguments: ", scalar(@_), "\n";
-#    print "@_\n";
-    my $sum = 0;
-    my @a = @_;
-#    print "\@a isa '", ref(@a), "'\n";
-    foreach my $element (@_) {
-        next unless (defined($element) && $element->[0]);
-        print "\$element = '$element' [",ref($element),"]\n";
-        ++$sum;
-    }
-    print "returning '$sum' from sum()\n";
-    return $sum;
 }
 
 sub write_to_file {
