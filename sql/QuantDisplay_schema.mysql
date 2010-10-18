@@ -34,7 +34,7 @@ CREATE TABLE `fattribute` (
   `fattribute_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `fattribute_name` varchar(255) NOT NULL,
   PRIMARY KEY (`fattribute_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -76,7 +76,7 @@ CREATE TABLE `fdata` (
   KEY `ftypeid` (`ftypeid`),
   KEY `gid` (`gid`),
   KEY `fref` (`fref`,`fbin`,`fstart`,`fstop`,`ftypeid`,`gid`)
-) ENGINE=MyISAM AUTO_INCREMENT=232076508 DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -108,7 +108,7 @@ CREATE TABLE `fgroup` (
   PRIMARY KEY (`gid`),
   UNIQUE KEY `gclass` (`gclass`,`gname`),
   KEY `gclass_2` (`gclass`)
-) ENGINE=MyISAM AUTO_INCREMENT=169545466 DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -140,7 +140,7 @@ CREATE TABLE `ftype` (
   UNIQUE KEY `ftype` (`fmethod`,`fsource`),
   KEY `fmethod` (`fmethod`),
   KEY `fsource` (`fsource`)
-) ENGINE=MyISAM AUTO_INCREMENT=28 DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
