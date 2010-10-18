@@ -130,11 +130,13 @@ while (<IN>) {
     chomp($line);
     my @values = split /\t/, $line;
 
-    if (!$reftrack{$values[0]} || eof) {
+#    if (!$reftrack{$values[0]} || eof) {# except, if eof returns 1, then the last value will not be processed
+    if (!$reftrack{$values[0]}) {
         collapse() if ($fuzzy);
         write_to_file(\%db,$refmol,$source,$type);
         %db = ();
     }
+
     my ($start,$stop,$diff,$strand) = ($values[3],$values[4],$values[4]-$values[3],$values[6]);
     ($refmol,$source,$type) = ($values[0],$values[1],$values[2]);# if ($line_count == 1);
     my ($score,$phase,$group) = ($values[$scorecall-1],$values[7],$values[8]);
@@ -160,6 +162,11 @@ while (<IN>) {
     last if ($debug && $line_count == 5);
     if ($verbose) {
         print "line count: $line_count\n" if ($line_count % 100000 == 0);
+    }
+} continue {
+    if (eof) { # not sure why I need this here (isn't this section only visited when eof is true?), but otherwise doesn't work as expected
+        collapse() if ($fuzzy);
+        write_to_file(\%db,$refmol,$source,$type);
     }
 }
 
