@@ -132,7 +132,7 @@ while (<IN>) {
 
 #    if (!$reftrack{$values[0]} || eof) {# except, if eof returns 1, then the last value will not be processed
     if (!$reftrack{$values[0]}) {
-        collapse() if ($fuzzy);
+        traverse(\%db,$fuzzy) if ($fuzzy);
         write_to_file(\%db,$refmol,$source,$type);
         %db = ();
     }
@@ -142,7 +142,7 @@ while (<IN>) {
     my ($score,$phase,$group) = ($values[$scorecall-1],$values[7],$values[8]);
     ++$reftrack{$refmol};
 
-    my $pk = "$values[0]$start$stop$strand";
+    my $pk = "$values[0]\0$start\0$stop\0$strand";
     if ($opt_M) {
         $db{$pk} = $line;
     } else {
@@ -165,7 +165,7 @@ while (<IN>) {
     }
 } continue {
     if (eof) { # not sure why I need this here (isn't this section only visited when eof is true?), but otherwise doesn't work as expected
-        collapse() if ($fuzzy);
+        traverse(\%db,$fuzzy) if ($fuzzy);
         write_to_file(\%db,$refmol,$source,$type);
     }
 }
@@ -227,51 +227,97 @@ sub assigned {
     my $sum = 0;
     my @a = @_;
     foreach my $element (@_) {
-        next unless (defined($element) && $element->[0]);
-        print "\$element = '$element' [",ref($element),"]\n";
-        ++$sum;
+        #next unless (defined($element) && $element->[0]);
+        next unless (defined($element) && scalar(@$element));
+        #print "\$element = '$element' [",ref($element),"]\n";
+        print "adding to sum: '", scalar(@$element), "'\n";
+        #++$sum;
+        $sum += scalar(@$element);
     }
     print "returning '$sum' from sum()\n";
     return $sum;
 }
 
-sub collapse {
-    my $db = shift;
+sub traverse {
+    my $db = shift;# this will be a reference to %db
+    my $fuzzy = shift;
+    #my %db = %$dbr;
+
+    #
+    # %db has the following general structure:
+    # $db{str}{tally} = integer
+    # $db{str}{coords} = [start, stop]
+    # $db{str}{data} = [score, phase, group, strand]
+    #
+    # where str is a unique string containing these values:
+    # refmol, start, stop, strand
+    # this has gone through several changes, but currently this string
+    # simply serves as a unique identifier for each feature
+    #
 
     my %hofa = (); # hash of array references
     #
-    # collapse data structure based on fuzzy start/stop coordinates
+    # convert data structure to array of arrays
     #
-    foreach my $key (keys %db) {
-        print "key: '$key'\tvalue: '$db{$key}'\n";
-        my @values = split /;/, $key;
+    foreach my $key (keys %$db) {
+        print "key: '$key'\tvalue: '$db->{$key}'\n";
+        #my @values = split /;/, $key;
+        my @values = split /\0/, $key;
         print "@values\n\n";
-        $hofa{$values[0] . $values[3]}[$values[1]] = [$values[2], $db{$key}];
+        #
+        # build a hash of arrays of arrays keyed by refmol + strand.
+        # however, this is unnecessary now because each refmol is independent
+        #
+        # first array contains start coordinates <-- this won't work if there are features of different lengths with same start coordinate
+        # what if I use push to generate and array at each observed start coordinate?
+        #
+
+        push(@{$hofa{$values[3]}[$values[1]]}, [$values[2], $db->{$key}->{data}, $db->{$key}->{tally}]);
+        # so, the data structure looks like this:
+        # hofa{+}[695] = [ [], [], [] ]
+        # at postion 695 on the pos strand, there are 3 features with the same start coordinate
+        #
     }
-    
+
+    print "traverse keys: '",  keys(%hofa), "'\n";
+
     foreach my $key (keys %hofa) {
-        print "refmol $key\n";
-        my $aref = $hofa{$key};
+        print "strand: $key\n";
+        my $aref = $hofa{$key}; # $aref = either + array or - array of array references
         print "\$aref isa '", ref($aref), "'\n";
         my $alength = scalar(@$aref);
         print "\$alength = '$alength'\n";
-        for (my $i = $fuzzy; $i < $alength; ++$i) {
-#
+
+        for (my $i = $fuzzy; $i < $alength; ++$i) { # why do I initialize $i to $fuzzy?
             my $stop;
             my $h = $i+$fuzzy;
-#
-            if ($aref->[$i]) {
-                print "valid element at index $i\n";
-                print "start: $i\tstop: $hofa{$key}[$i][0] -- $hofa{$key}[$i][1]\n";
-                if (assigned(@$aref[$i..$h]) > 1) {
-                    print "will collapse multiple reads betw $i and $h\n";
 
-                    foreach my $scoord ($i+1..$h) {
-                        print "\$scoord: $scoord\n";
-                        if ($hofa{$key}[$scoord][0] && ($hofa{$key}[$scoord][0] - $hofa{$key}[$i][0] <= $fuzzy)) {
-                        
+            if ($aref->[$i]) {
+                print "at least one valid element at index $i\n";
+                #foreach my $alist (@{$aref->[$i]}) {
+                #    print "\$alist isa '", ref($alist), "'\n";
+                #    print "start: $i\tstop: " . $alist->[0] . "\n";
+                #}
+                if (assigned(@$aref[$i..$h]) > 1) {
+                    print "will collapse multiple reads with start coords betw $i and $h\n";
+
+                    my ($laststop,@features) = (0);
+                    foreach my $feature_list (@$aref[$i..$h]) {
+                        foreach my $ele (@$feature_list) {
+                            push(@features,$ele);
                         }
                     }
+
+                    foreach my $feature (sort { $a->[0] <=> $b->[0] } @features) {
+                        print "stop: '", $feature->[0], "'\n";
+                    }
+
+                    #foreach my $scoord ($i+1..$h) {
+                    #    print "\$scoord: $scoord\n";
+                    #    if ($hofa{$key}[$scoord][0] && ($hofa{$key}[$scoord][0] - $hofa{$key}[$i][0] <= $fuzzy)) {
+                    #    
+                    #    }
+                    #}
                 }
                 print "\n\n";
             }
