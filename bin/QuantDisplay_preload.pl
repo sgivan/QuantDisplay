@@ -2,6 +2,7 @@
 #
 #
 #
+use 5.8.8;# will probably work with lesser, but not tested
 use strict;
 use warnings;
 use Bio::DB::GFF;
@@ -40,8 +41,11 @@ options
 -p      preserve all data from original file, otherwise truncates last column
 -c      use the value in this column for QDcount
 -r      when using -c, replace that column with this value (typically -r '.')
+-z      use fuzzy coordinate matching
+        use like -z 2, which will collapse all reads within 2nt (start or stop coordinates)
 -o      output file name, otherwise use default name
 -M      use this flag if RAM is limited -- much slower!
+-d      debugging output
 
 
 HELP
@@ -171,51 +175,8 @@ while (<IN>) {
 }
 
 #print "# of keys: ", scalar(keys %db), "\n" if ($verbose);
-print "# of keys: ", scalar(keys %db), "\n";# if ($verbose);
+print "# of keys: ", scalar(keys %db), "\n" if ($debug);
 #print "tallies collected\nfilling output file\n" if ($verbose);
-
-#my %collapsed = ();
-#if ($fuzzy) {
-#    my %hofa = (); # hash of array references
-#    #
-#    # collapse data structure based on fuzzy start/stop coordinates
-#    #
-#    foreach my $key (keys %db) {
-#        print "key: '$key'\tvalue: '$db{$key}'\n";
-#        my @values = split /;/, $key;
-#        print "@values\n\n";
-#        $hofa{$values[0] . $values[3]}[$values[1]] = [$values[2], $db{$key}];
-#    }
-#    
-#    foreach my $key (keys %hofa) {
-#        print "refmol $key\n";
-#        my $aref = $hofa{$key};
-#        print "\$aref isa '", ref($aref), "'\n";
-#        my $alength = scalar(@$aref);
-#        print "\$alength = '$alength'\n";
-#        for (my $i = $fuzzy; $i < $alength; ++$i) {
-##
-#            my $stop;
-#            my $h = $i+$fuzzy;
-##
-#            if ($aref->[$i]) {
-#                print "valid element at index $i\n";
-#                print "start: $i\tstop: $hofa{$key}[$i][0] -- $hofa{$key}[$i][1]\n";
-#                if (assigned(@$aref[$i..$h]) > 1) {
-#                    print "will collapse multiple reads betw $i and $h\n";
-#
-#                    foreach my $scoord ($i+1..$h) {
-#                        print "\$scoord: $scoord\n";
-#                        if ($hofa{$key}[$scoord][0] && ($hofa{$key}[$scoord][0] - $hofa{$key}[$i][0] <= $fuzzy)) {
-#                        
-#                        }
-#                    }
-#                }
-#                print "\n\n";
-#            }
-#        }
-#    }
-#}
 
 print "finished\n\n" if ($verbose);
 
@@ -230,18 +191,17 @@ sub assigned {
         #next unless (defined($element) && $element->[0]);
         next unless (defined($element) && scalar(@$element));
         #print "\$element = '$element' [",ref($element),"]\n";
-        print "adding to sum: '", scalar(@$element), "'\n";
+        print "adding to sum: '", scalar(@$element), "'\n" if ($debug);
         #++$sum;
         $sum += scalar(@$element);
     }
-    print "returning '$sum' from sum()\n";
+    print "returning '$sum' from sum()\n" if ($debug);
     return $sum;
 }
 
 sub traverse {
     my $db = shift;# this will be a reference to %db
     my $fuzzy = shift;
-    #my %db = %$dbr;
 
     #
     # %db has the following general structure:
@@ -250,7 +210,7 @@ sub traverse {
     # $db{str}{data} = [score, phase, group, strand]
     #
     # where str is a unique string containing these values:
-    # refmol, start, stop, strand
+    # refmol\0start\0stop\0strand
     # this has gone through several changes, but currently this string
     # simply serves as a unique identifier for each feature
     #
@@ -260,10 +220,10 @@ sub traverse {
     # convert data structure to array of arrays
     #
     foreach my $key (keys %$db) {
-        print "key: '$key'\tvalue: '$db->{$key}'\n";
+        print "key: '$key'\tvalue: '$db->{$key}'\n" if ($debug);
         #my @values = split /;/, $key;
         my @values = split /\0/, $key;
-        print "@values\n\n";
+        print "@values\n\n" if ($debug);
         #
         # build a hash of arrays of arrays keyed by refmol + strand.
         # however, this is unnecessary now because each refmol is independent
@@ -272,56 +232,101 @@ sub traverse {
         # what if I use push to generate and array at each observed start coordinate?
         #
 
-        push(@{$hofa{$values[3]}[$values[1]]}, [$values[2], $db->{$key}->{data}, $db->{$key}->{tally}]);
+        push(@{$hofa{$values[3]}[$values[1]]}, [$values[2], $db->{$key}->{data}, $db->{$key}->{tally}, $values[1]]);
         # so, the data structure looks like this:
         # hofa{+}[695] = [ [], [], [] ]
         # at postion 695 on the pos strand, there are 3 features with the same start coordinate
         #
     }
 
-    print "traverse keys: '",  keys(%hofa), "'\n";
+    print "traverse keys: '",  keys(%hofa), "'\n" if ($debug);
 
     foreach my $key (keys %hofa) {
-        print "strand: $key\n";
+        print "strand: $key\n" if ($debug);
         my $aref = $hofa{$key}; # $aref = either + array or - array of array references
-        print "\$aref isa '", ref($aref), "'\n";
+        #print "\$aref isa '", ref($aref), "'\n";
         my $alength = scalar(@$aref);
-        print "\$alength = '$alength'\n";
+        print "\$alength = '$alength'\n" if ($debug);
 
-        for (my $i = $fuzzy; $i < $alength; ++$i) { # why do I initialize $i to $fuzzy?
+        #for (my $i = $fuzzy; $i < $alength; ++$i) { # why do I initialize $i to $fuzzy?
+        for (my $i = 1; $i < $alength; ++$i) { 
             my $stop;
             my $h = $i+$fuzzy;
 
             if ($aref->[$i]) {
-                print "at least one valid element at index $i\n";
+                print "at least one valid element at index $i\n" if ($debug);
                 #foreach my $alist (@{$aref->[$i]}) {
                 #    print "\$alist isa '", ref($alist), "'\n";
                 #    print "start: $i\tstop: " . $alist->[0] . "\n";
                 #}
                 if (assigned(@$aref[$i..$h]) > 1) {
-                    print "will collapse multiple reads with start coords betw $i and $h\n";
+                    print "try to collapse multiple reads with start coords betw $i and $h\n" if ($debug);
 
                     my ($laststop,@features) = (0);
+                    #
+                    # collect all feature anonymous arrayrefs
+                    #
+                    my @buffer = ();
                     foreach my $feature_list (@$aref[$i..$h]) {
-                        foreach my $ele (@$feature_list) {
-                            push(@features,$ele);
+                        if (defined(@$feature_list)) {
+                            foreach my $ele (sort { $a->[0] <=> $b->[0] } @$feature_list) {
+                                print "stop: '", $ele->[0], "'\n" if ($debug);
+                                #$laststop = $ele->[0] unless ($laststop);
+                                unless ($laststop) {
+                                    $laststop = $ele->[0];
+                                    push(@buffer,$ele);
+                                    next;
+                                }
+                                print "laststop = $laststop\n" if ($debug);
+                                if ($ele->[0] - $laststop > $fuzzy) { # these reads should not be collapsed
+                                    $laststop = $ele->[0];
+                                    push(@buffer,$ele);
+                                } else { # these reads should be collapsed
+                                    # I need to modify this.
+                                    # I need to be modifying %db when collapsing
+                                    # 
+                                    my $tele = pop(@buffer);
+                                    $tele->[2] += $ele->[2];
+                                    push(@buffer,$tele);
+                                    #my $pkk = "$refmol\0$i\0$ele->[0]\0$key";
+                                    my $pkk = "$refmol\0$tele->[3]\0$tele->[0]\0$key";
+                                    print "pkk: '$pkk'\n" if ($debug);
+                                    my $pkt = "$refmol\0$ele->[3]\0$ele->[0]\0$key";
+                                    $db->{$pkk}{tally} += $db->{$pkt}{tally};
+                                    print "collapsing '$pkt' [$db->{$pkt}]\n" if ($debug);
+                                    delete($db->{$pkt});
+                                    print "now: ", $db->{$pkt}, "\n" if ($debug);
+                                }
+                            }
                         }
                     }
 
-                    foreach my $feature (sort { $a->[0] <=> $b->[0] } @features) {
-                        print "stop: '", $feature->[0], "'\n";
+                    my $bcnt = 0;
+                    if ($debug) {
+                        foreach my $bele (@buffer) {
+                            ++$bcnt;
+                            print "buffer element $bcnt:\n\t", $bele->[0], ", ", $bele->[1], ", ", $bele->[2], "\n";
+                        }
                     }
 
-                    #foreach my $scoord ($i+1..$h) {
-                    #    print "\$scoord: $scoord\n";
-                    #    if ($hofa{$key}[$scoord][0] && ($hofa{$key}[$scoord][0] - $hofa{$key}[$i][0] <= $fuzzy)) {
-                    #    
-                    #    }
-                    #}
+                    
+                    $i = $h;
+                } else { # still need to generate output if only 1 feature present at this coordinate
+                    # actually, I don't need to do anything if no collapse is necessary
+                    # these features will be printed without any further action here
+                    #
+                    #my %dbt = ();
+                    #$dbt{unique} = {
+                    #                    'tally'     =>  $aref->[$i][0][2],
+                    #                    'coords'    =>  [$i,$aref->[$i][0][0]],
+                    #                    'data'      =>  $aref->[$i][0][1],
+                    #                };
+                    #write_to_file(\%dbt,$refmol,$source,$type);
+
                 }
-                print "\n\n";
-            }
-        }
+                print "\n\n" if ($debug);
+            } # end of if block
+        } # end of for loop
     }
 
 }
