@@ -1,0 +1,148 @@
+-- MySQL dump 10.13  Distrib 5.1.47, for unknown-linux-gnu (x86_64)
+--
+-- Host: lewis1.rnet.missouri.edu    Database: gbrowse-FGMG
+-- ------------------------------------------------------
+-- Server version	5.1.47-log
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Table structure for table `fattribute`
+--
+
+DROP TABLE IF EXISTS `fattribute`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `fattribute` (
+  `fattribute_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `fattribute_name` varchar(255) NOT NULL,
+  PRIMARY KEY (`fattribute_id`)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `fattribute_to_feature`
+--
+
+DROP TABLE IF EXISTS `fattribute_to_feature`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `fattribute_to_feature` (
+  `fid` int(10) NOT NULL,
+  `fattribute_id` int(10) NOT NULL,
+  `fattribute_value` text,
+  KEY `fid` (`fid`,`fattribute_id`),
+  KEY `fattribute_value` (`fattribute_value`(48)),
+  FULLTEXT KEY `fattribute_value_2` (`fattribute_value`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `fdata`
+--
+
+DROP TABLE IF EXISTS `fdata`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `fdata` (
+  `fid` int(11) NOT NULL AUTO_INCREMENT,
+  `fref` varchar(100) NOT NULL,
+  `fstart` int(10) unsigned NOT NULL,
+  `fstop` int(10) unsigned NOT NULL,
+  `fbin` double(20,6) NOT NULL,
+  `ftypeid` int(11) NOT NULL,
+  `fscore` float DEFAULT NULL,
+  `fstrand` enum('+','-') DEFAULT NULL,
+  `fphase` enum('0','1','2') DEFAULT NULL,
+  `gid` int(11) NOT NULL,
+  `ftarget_start` int(10) unsigned DEFAULT NULL,
+  `ftarget_stop` int(10) unsigned DEFAULT NULL,
+  PRIMARY KEY (`fid`),
+  KEY `ftypeid` (`ftypeid`),
+  KEY `gid` (`gid`),
+  KEY `fref` (`fref`,`fbin`,`fstart`,`fstop`,`ftypeid`,`gid`)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `fdna`
+--
+
+DROP TABLE IF EXISTS `fdna`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `fdna` (
+  `fref` varchar(100) NOT NULL,
+  `foffset` int(10) unsigned NOT NULL,
+  `fdna` longblob,
+  PRIMARY KEY (`fref`,`foffset`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `fgroup`
+--
+
+DROP TABLE IF EXISTS `fgroup`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `fgroup` (
+  `gid` int(11) NOT NULL AUTO_INCREMENT,
+  `gclass` varchar(100) DEFAULT NULL,
+  `gname` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`gid`),
+  UNIQUE KEY `gclass` (`gclass`,`gname`)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `fmeta`
+--
+
+DROP TABLE IF EXISTS `fmeta`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `fmeta` (
+  `fname` varchar(255) NOT NULL,
+  `fvalue` varchar(255) NOT NULL,
+  PRIMARY KEY (`fname`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `ftype`
+--
+
+DROP TABLE IF EXISTS `ftype`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `ftype` (
+  `ftypeid` int(11) NOT NULL AUTO_INCREMENT,
+  `fmethod` varchar(100) NOT NULL,
+  `fsource` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`ftypeid`),
+  UNIQUE KEY `ftype` (`fmethod`,`fsource`),
+  KEY `fmethod` (`fmethod`),
+  KEY `fsource` (`fsource`)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on 2010-10-11 16:38:13
