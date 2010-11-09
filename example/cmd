@@ -1,0 +1,1 @@
+bp_fast_load_gff.pl --user test-QD --mach lewis2.rnet.missouri.edu --password quantdisplay --fasta short_chroms.fa --nodownload --local --database test-QD *.gff
