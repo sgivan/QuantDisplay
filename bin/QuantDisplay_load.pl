@@ -20,6 +20,7 @@
 use strict;
 use Bio::DB::GFF;
 use Getopt::Std;
+use lib '/home/sgivan/lib/perl5';
 use vars qw/ $opt_h $opt_f $opt_F $opt_d $opt_u $opt_p $opt_H $opt_b $opt_r $opt_l $opt_a $opt_A $opt_R $opt_v $opt_c $opt_o $opt_i $opt_n $opt_m $opt_M $opt_X /;
 
 getopts('hf:Fdu:p:H:b:r:R:laAvco:in:m:M:X:');
