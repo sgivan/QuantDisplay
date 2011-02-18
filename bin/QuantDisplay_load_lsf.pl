@@ -10,7 +10,7 @@ getopts('hf:du:p:H:b:r:R:l:aAvcq:s:');
 
 my $user = $opt_u || 'yeast';
 my $password = $opt_p || undef;
-my $dbhost = $opt_H || 'lewis1.rnet.missouri.ed';
+my $dbhost = $opt_H || 'lewis2.rnet.missouri.edu';
 my $db = $opt_b || 'yeast_chr1';
 my $help = $opt_h || undef;
 my $debug = $opt_d || undef;
@@ -20,11 +20,14 @@ my $urefmol = $opt_r || 'I';
 my $usage = "QuantDisplay_load.pl -p ( -h -f -d -u -H -b -v )";
 my $refclass = $opt_R || 'chromosome';
 my $QDcount = $opt_c || undef;
-my $queues = $opt_q;
+#my $queues = $opt_q;
+my $queues = 0;
 my $stop = $opt_s;
 my $start = $opt_l;
 
-my $QD_script = "/home/sgivan/bin/QuantDisplay_load.pl";
+my $QD_script = "/home/sgivan/projects/QuantDisplay/bin/QuantDisplay_load.pl";
+#my $QD_script = "/home/sgivan/bin/QuantDisplay_load.pl";
+
 my $dir = cwd();
 
 my $username = $ENV{USER};
@@ -41,7 +44,7 @@ database using bp_fast_load_gff.pl
 
 $usage
 
-ie: QuantDisplay_load_lsf.pl -u brachy_cluster -b brachy4-gbrowse-dev -p password -H skynet.science.oregonstate.local -f perfect_match -R contig -a -c
+ie: QuantDisplay_load_lsf.pl -u brachy_cluster -b QuantDisplay01 -p password -H lewis2.rnet.missouri.edu -f perfect_match -R contig -a -c
 
 Options
 
