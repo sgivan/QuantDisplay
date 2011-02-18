@@ -9,13 +9,13 @@ use Bio::DB::GFF;
 use Getopt::Std;
 use Data::Dumper;
 #use BerkeleyDB;
-use vars qw/ $opt_f $opt_h $opt_d $opt_v $opt_M $opt_o $opt_i $opt_p $opt_c $opt_r $opt_z /;
+use vars qw/ $opt_f $opt_h $opt_d $opt_v $opt_M $opt_o $opt_i $opt_p $opt_c $opt_r $opt_z $opt_s /;
 
-getopts('f:hdvMo:ipc:r:z:');
+getopts('f:hdvMo:ipc:r:z:s');
 
-my ($file,$help,$debug,$verbose,$fuzzy) = ($opt_f,$opt_h,$opt_d,$opt_v,$opt_z);
+my ($file,$help,$debug,$verbose,$fuzzy,$ignorestrand) = ($opt_f,$opt_h,$opt_d,$opt_v,$opt_z,$opt_s);
 my $scorecall = $opt_c || 6;
-my $maxlength = 150;
+my $maxlength = 150; # I don't think this is used anywhere else
 
 # print "file = '$file'\n";
 # print "help = '$help'\n";
@@ -43,6 +43,7 @@ options
 -r      when using -c, replace that column with this value (typically -r '.')
 -z      use fuzzy coordinate matching
         use like -z 2, which will collapse all reads within 2nt (start or stop coordinates)
+-s      ignore strand of alignment
 -o      output file name, otherwise use default name
 -M      use this flag if RAM is limited -- much slower!
 -d      debugging output
@@ -128,6 +129,12 @@ my $line_count;
 #my ($refmol,$source,$type,$score,$phase,$group);
 my ($refmol,$source,$type,%reftrack);
 my @db = ();
+
+# The following loop creates a data structure of all the reads for
+# a given reference molecule. When a new ref mol is encountered, 
+# the data structure is passed to traverse() (if this is a fuzzy job)
+# and write_to_file() to generate the output.
+#
 while (<IN>) {
     ++$line_count;
     my $line = $_;
@@ -145,6 +152,7 @@ while (<IN>) {
     ($refmol,$source,$type) = ($values[0],$values[1],$values[2]);# if ($line_count == 1);
     my ($score,$phase,$group) = ($values[$scorecall-1],$values[7],$values[8]);
     ++$reftrack{$refmol};
+    $strand = '+' if ($ignorestrand);
 
     my $pk = "$values[0]\0$start\0$stop\0$strand";
     if ($opt_M) {
@@ -199,6 +207,9 @@ sub assigned {
     return $sum;
 }
 
+#
+# traverse() is where the fuzzy magic happens
+#
 sub traverse {
     my $db = shift;# this will be a reference to %db
     my $fuzzy = shift;
@@ -236,6 +247,8 @@ sub traverse {
         # so, the data structure looks like this:
         # hofa{+}[695] = [ [], [], [] ]
         # at postion 695 on the pos strand, there are 3 features with the same start coordinate
+        # each annonymous array looks like this:
+        # [ stop coordinate, [ score, phase, group, strand ], tally, start coordinate ]
         #
     }
 
@@ -249,9 +262,13 @@ sub traverse {
         print "\$alength = '$alength'\n" if ($debug);
 
         #for (my $i = $fuzzy; $i < $alength; ++$i) { # why do I initialize $i to $fuzzy?
+        #
+        # $i will be the index of the array
+        # the array is the length of the chromosome
+        #
         for (my $i = 1; $i < $alength; ++$i) { 
             my $stop;
-            my $h = $i+$fuzzy;
+            my $h = $i+$fuzzy;# $h is the upper bound of the array slice to detect nearby reads
 
             if ($aref->[$i]) {
                 print "at least one valid element at index $i\n" if ($debug);
@@ -259,7 +276,7 @@ sub traverse {
                 #    print "\$alist isa '", ref($alist), "'\n";
                 #    print "start: $i\tstop: " . $alist->[0] . "\n";
                 #}
-                if (assigned(@$aref[$i..$h]) > 1) {
+                if (assigned(@$aref[$i..$h]) > 1) { # if there are multiple reads in array slice
                     print "try to collapse multiple reads with start coords betw $i and $h\n" if ($debug);
 
                     my ($laststop,@features) = (0);
@@ -268,37 +285,70 @@ sub traverse {
                     #
                     my @buffer = ();
                     foreach my $feature_list (@$aref[$i..$h]) {
+                        # remember --
+                        # each element of $feature list looks like this:
+                        # [ stop coordinate, [ score, phase, group, strand ], tally, start coordinate ]
+                        #
                         if (defined(@$feature_list)) {
+                            #
+                            # loop through features in this slice
+                            # sort features by stop coordinate (we already know about start coordinate)
+                            #
                             foreach my $ele (sort { $a->[0] <=> $b->[0] } @$feature_list) {
                                 print "stop: '", $ele->[0], "'\n" if ($debug);
                                 #$laststop = $ele->[0] unless ($laststop);
+                                # if this is the first loop, push the read onto the array and move to the next
                                 unless ($laststop) {
                                     $laststop = $ele->[0];
                                     push(@buffer,$ele);
                                     next;
                                 }
                                 print "laststop = $laststop\n" if ($debug);
+                                #
+                                # test for fuzziness at end coordinate
+                                # ie, if this read's end coordinate falls outside of fuzzy value,
+                                # it shouldn't be collapsed. It will be in the output, but it won't
+                                # be collapsed. Remember that the reads have been sorted by end
+                                # coordinate here. So, there may be a whole new set of reads that
+                                # have end coordinates near a new one.
+                                #
                                 if ($ele->[0] - $laststop > $fuzzy) { # these reads should not be collapsed
                                     $laststop = $ele->[0];
                                     push(@buffer,$ele);
                                 } else { # these reads should be collapsed
-                                    # I need to modify this.
-                                    # I need to be modifying %db when collapsing
                                     # 
+                                    # since we're collapsing, pop the last feature off of @buffer
+                                    # and add to the tally
+                                    # you keep the start coordinate of the anchor read 
+                                    #
                                     my $tele = pop(@buffer);
                                     $tele->[2] += $ele->[2];
                                     push(@buffer,$tele);
-                                    #my $pkk = "$refmol\0$i\0$ele->[0]\0$key";
+                                    
+                                    # construct hash key for anchor feature in %db
+                                    #
                                     my $pkk = "$refmol\0$tele->[3]\0$tele->[0]\0$key";
                                     print "pkk: '$pkk'\n" if ($debug);
+
+                                    # construct hash key of feature in %db that we are
+                                    # collapsing into achor feature
+                                    #
                                     my $pkt = "$refmol\0$ele->[3]\0$ele->[0]\0$key";
+                                    #
+                                    # add the tally value to the anchor feature 
+                                    # and add to %db
                                     $db->{$pkk}{tally} += $db->{$pkt}{tally};
+                                    # change stop coordinate of anchor feature to collapsing feature
+                                    $db->{$pkk}{coords}->[1] = $ele->[0];
+
                                     print "collapsing '$pkt' [$db->{$pkt}]\n" if ($debug);
+                                    #
+                                    # and delete the original read from %db
                                     delete($db->{$pkt});
                                     print "now: ", $db->{$pkt}, "\n" if ($debug);
                                 }
                             }
-                        }
+                        } # end of if (defined())
                     }
 
                     my $bcnt = 0;
@@ -330,7 +380,10 @@ sub traverse {
     }
 
 }
-
+#
+# write_to_file() will generate a GFF2-ish file
+# will need to update this eventually to generate a GFF3 file
+#
 sub write_to_file {
     my $db = shift;
     my($refmol,$source,$type) = @_;    
