@@ -42,7 +42,7 @@ my $FCOUNT = 0;
 
 my $debug = 0;
 if ($debug) {
-  open(LOG,">>/tmp/QuantDisplay.log") or warn "can't open QuantDisplay.log";
+  open(LOG,">/tmp/QuantDisplay.log") or warn "can't open QuantDisplay.log";
   print LOG "\n\n" . "+" x 10 . "\nQuantDisplay\t" . scalar(localtime) . "\n";
 }
 
@@ -147,7 +147,7 @@ sub annotate {
       if ($key eq 'track_collapsed') {
         print LOG "printing collapsed tracks:\n";
         while (my($key2,$value2) = each %$value) {
-          print LOG "track '$key2' = '$value2'\n";
+          print LOG "\ttrack '$key2' = '$value2'\n";
         }
       }
     }
@@ -190,7 +190,7 @@ sub annotate {
     print LOG "\$self isa '", ref($self), "'\n";
     print LOG "\$segment isa '", ref($segment), "'\n";
     print LOG "\t", $segment->start(), " - ", $segment->stop(), "\n";
-    print LOG "\tfeature count: ", $segment->feature_count(), "\n\n";
+#    print LOG "\tfeature count: ", $segment->feature_count(), "\n\n";
     print LOG "\$config isa '", ref($config), "'\n";
 #   my $datasource = $config->{QD_datasource};
     my $datasource = $self->_array_to_hash($config->{QD_datasource});
@@ -201,6 +201,7 @@ sub annotate {
     print LOG "\n\n";
 
     if (ref($config) eq 'HASH') {
+        print LOG "config hashref contains:\n";
       while (my($key,$value) = each %$config) {
         $key = 'n/a' unless($key);
         $value = 'n/a' unless ($value);
@@ -237,6 +238,19 @@ sub annotate {
                                                                 # which could cause display to change to histogram view
 
       print LOG "generating histogram display\n" if ($debug);
+
+    my ($db2,$segment2);
+    $self->_db_handle(\$db2,$config);
+    print LOG "creating new segment using: ", $segment->refseq(), ", ", $segment->start(), ", ", $segment->stop(), "\n" if ($debug);
+    $segment2 = $db2->segment(
+        -name   =>  $segment->refseq(),
+        -start  =>  $segment->start(),
+        -stop   =>  $segment->stop(),
+    );
+    my $segment_orig = $segment;
+    $segment = $segment2;
+    print LOG "new segment isa ", ref($segment), "\n";
+
 
       my @feats = $segment->features( -type => "QD" . $qdfeat . "_" . $bin_width . ":QD");
       
@@ -334,12 +348,13 @@ sub annotate {
 
       my (%feature_count,$actual_count,$factor,$max) = (0,0,1,0);
       my ($db2,$segment2);
-      $db2 = Bio::DB::GFF->new(
-                  -adaptor    =>  'dbi::mysql',
-                  -dsn  =>  $config->{detail_dsn} ? $config->{detail_dsn} : 'dbi:mysql:database=illumina;host=localhost',
-                                                                        -user   =>      $config->{detail_user} ? $config->{detail_user} : 'anonymous',
-                                                                        -pass   =>      $config->{detail_password} ? $config->{detail_password} : 'password',
-      );
+#      $db2 = Bio::DB::GFF->new(
+#                  -adaptor  =>  'dbi::mysql',
+#                  -dsn      =>  $config->{detail_dsn} ? $config->{detail_dsn} : 'dbi:mysql:database=illumina;host=localhost',
+#                  -user     =>  $config->{detail_user} ? $config->{detail_user} : 'anonymous',
+#                  -pass     =>  $config->{detail_password} ? $config->{detail_password} : 'password',
+#      );
+      $self->_db_handle(\$db2,$config);
 
       $segment2 = $db2->segment(
         -name     =>    $segment->refseq(),
@@ -445,7 +460,7 @@ sub annotate {
       $key_addn = $dataset_display_name->{$qdfeat} || $qdfeat;
       $actual_count = '0' unless ($actual_count);
       my $units = $config->{data_normalized} ? sprintf("%.2f", $actual_count) . " RPM" : "$actual_count independent reads";
-#      print LOG "\$config->{detail_feature_color} = '", ref($config->{detail_feature_color}, "'\n" if ($debug);
+      print LOG "\$config->{detail_feature_color} = '" . ref($config->{detail_feature_color}) . "'\n" if ($debug);
       $feature_list->add_type($type => {
 #         key           =>  $max ? "$key_addn" . ": max sequence count (" . $config->{max_features} . ") reached -- $feat_cnt sequences, $actual_count independent reads" : "$key_addn" . ": $feat_cnt sequences, $actual_count independent reads",
 #          key           =>  $max ? "$key_addn" . ": max sequence count (" . $config->{max_features} . ") reached -- $feat_cnt sequences, $units" : "$key_addn" . ": $feat_cnt sequences, $units",
@@ -455,14 +470,17 @@ sub annotate {
 #         strand        =>  1,
           height        => $config->{detail_proportional} ? \&_height : 4,
           connector     => 0,
-#          fgcolor       =>  'white',
-          fgcolor       =>  $config->{detail_feature_color} || 'red',
-#          bgcolor       =>  'purple',
-          bgcolor       =>  $config->{detail_feature_color} || 'red',
+#          fgcolor       =>  'green',
+#          fgcolor       =>  $config->{detail_feature_color} || 'blue',
+	  fgcolor	=>	$config->{detail_feature_color} eq 'by_length' ? sub { my $f = shift; return  $self->_color_by_length($f,$self->_array_to_hash($config->{detail_feature_color_map})); } : $config->{detail_feature_color},
+	  bgcolor	=>	$config->{detail_feature_color} eq 'by_length' ? sub { my $f = shift; return  $self->_color_by_length($f,$self->_array_to_hash($config->{detail_feature_color_map})); } : $config->{detail_feature_color},
+#          bgcolor       =>  sub { my $f = shift; return 'yellow'; },
+#          bgcolor       =>  $config->{detail_feature_color} || 'blue',
 #         label         =>  $config->{detail_label} ? \&_label : 0,
           label         =>  1,
           description   =>  $config->{detail_feature_label} || undef,
           bump          =>  '+1',
+#        link            =>  "gbrowse_details?name=$qdfeat",
       });
 
       print LOG "adding features of type '$type' to \@binblahs\n" if ($debug);
@@ -486,6 +504,7 @@ sub annotate {
           -ref      =>  $ref,
           -type     =>  $type,
           -name     =>  $config->{detail_label} ? &_label($self,$feature,$segment) : 0,
+#          -name     =>  'test',
 #         -class    =>  'QuantDisplay',
 #         -source   =>  'QuantDisplay.pm',
         );
@@ -810,7 +829,7 @@ sub configure_sites {
   my $self = shift;
   my $config = shift;
   print LOG "configure_sites()\n" if ($debug);
-  my $db = $self->database;
+  my $db = $self->QDdatabase;
   $config = $self->configuration unless ($config);
   my @types = ();
   print LOG "\$self isa '", ref($self), "'\n\$db isa '", ref($db), "'\n" if ($debug);
@@ -853,10 +872,13 @@ sub _configure_browser {
   my $config = shift;
   print LOG "_configure_browser()\n" if ($debug);
   my $bc = $self->browser_config();
+  print LOG "\$self isa '", ref($self), "'\n" if ($debug);
+  print LOG "\$bc isa '", ref($bc), "'\n" if ($debug);
   
   $config->{max_features} = $bc->plugin_setting('max_features') || 250;
   $config->{default_features} = $bc->plugin_setting('default_features') || '';
   $config->{detail_feature_color} = $bc->plugin_setting('detail_feature_color');
+  $config->{detail_feature_color_map} = $self->_detail_feature_color_map($bc->plugin_setting('detail_feature_color_map'));
   $config->{content_description} = $bc->plugin_setting('content_description') || '';
   $config->{detail_dsn} = $bc->plugin_setting('detail_dsn') || undef;
   $config->{detail_user} = $bc->plugin_setting('detail_user');
@@ -874,14 +896,42 @@ sub _configure_browser {
   return $config;
 }
 
+sub _detail_feature_color_map {
+	my $self = shift;
+	my $text = shift;
+	my $hashref = $self->_config_array($text);
+	return $hashref
+}
+
+sub _color_by_length {
+	my $self = shift;
+	my $f = shift;
+	my $colormap = shift;
+	my $length = $f->length();
+	#print STDERR "_color_by_length()\n" if ($debug);
+	#print STDERR "\n\$f isa '" . ref($f) . "'\n\$colormap isa '" . ref($colormap) . "'\nlength = '$length'\n" if ($debug);
+	#print STDERR "\n\$f isa '" . ref($f) . "'\n\$colormap is '$colormap'\nlength = '$length'\n" if ($debug);
+	my $color = 'peachpuff';
+
+	foreach my $threshold (sort {$a <=> $b } keys %$colormap) {
+	#	print STDERR "$length < $threshold?\n" if ($debug);
+		if ($length <= $threshold) {
+			$color = $colormap->{$threshold};
+			last;
+		}
+	}
+	#print STDERR "returning color '$color' from _color_by_length()\n" if ($debug);
+	return $color;
+}
+
 sub _height {
   my $feature = shift;
 
-  if ($debug) {
-    open(TMP,">>/tmp/QD_height.log");
-    print TMP "QuantDisplay::_height() called\n";
-    print TMP "\$feature isa '", ref($feature), "'\n";
-  }
+#  if ($debug) {
+#    open(TMP,">>/tmp/QD_height.log");
+#    print TMP "QuantDisplay::_height() called\n";
+#    print TMP "\$feature isa '", ref($feature), "'\n";
+#  }
 # $feature isa Bio::DB::GFF::Feature
 # $feature isa Bio::Graphics::Feature as of gbrowse 1.69
 
@@ -950,7 +1000,7 @@ sub _label {
     print LBL "\$feature isa '", ref($feature), "'\n";
   }
   
-  if (1) {## in future, include option to show / not show DNA sequence of feature in its label
+  if (0) {## in future, include option to show / not show DNA sequence of feature in its label
     my $featseq = $segment->subseq($feature->start(),$feature->stop());
     $label = $featseq->seq()->seq() || ' '; # note that if DNA sequences have not been loaded into DB, then this will be empty
     if ($debug) {
@@ -1108,5 +1158,33 @@ sub _score {
       }
 }
 
+sub _db_handle {
+        my $self = shift;
+        my $dbr = shift;
+        my $config = shift;
+        $config = $self->configuration unless ($config);
+        $self->_configure_browser($config);
+        $$dbr = Bio::DB::GFF->new(
+                    -adaptor  =>  'dbi::mysql',
+                    -dsn      =>  $config->{detail_dsn} ? $config->{detail_dsn} : 'dbi:mysql:database=illumina;host=localhost',
+                    -user     =>  $config->{detail_user} ? $config->{detail_user} : 'anonymous',
+                    -pass     =>  $config->{detail_password} ? $config->{detail_password} : 'password',
+        );
+#        $config->{QDdatabase} = $$dbr; # don't do this!, it doesn't work and creates a Storable error
+                                        # either when storing a reference or dereferenced reference to config.
+        return 1;
+}
+
+sub QDdatabase {
+    my $self = shift;
+    my $config = shift;
+    my $dbr;
+    unless (defined($config->{QDdatabase})) { # at this point, this will never eval to true
+       $self->_db_handle(\$dbr);
+    } else {
+        #$dbr = $$config->{QDdatabase};# don't do this, it breaks Storable
+    }
+    return $dbr;
+}
 
 1;
