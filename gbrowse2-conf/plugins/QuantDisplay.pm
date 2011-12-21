@@ -42,7 +42,7 @@ my $FCOUNT = 0;
 
 my $debug = 0;
 if ($debug) {
-  open(LOG,">/tmp/QuantDisplay.log") or warn "can't open QuantDisplay.log";
+  open(LOG,">>/tmp/QuantDisplay.log") or warn "can't open QuantDisplay.log";
   print LOG "\n\n" . "+" x 10 . "\nQuantDisplay\t" . scalar(localtime) . "\n";
 }
 
@@ -249,18 +249,42 @@ sub annotate {
     );
     my $segment_orig = $segment;
     $segment = $segment2;
-    print LOG "new segment isa ", ref($segment), "\n";
+    print LOG "new segment isa ", ref($segment), "\n" if ($debug);
 
 
-      my @feats = $segment->features( -type => "QD" . $qdfeat . "_" . $bin_width . ":QD");
-      
+#    my @tracktypes = ("QDCF-1_100:QD", "QDCF-2_100:QD", "QDCF-3_100:QD");
+    my ($combined,@tracktypes) = ();
+    if ($qdfeat =~ /!/) {
+        $combined = 1;
+        for my $qdfeat (split /!/, $qdfeat) {
+            push(@tracktypes, "QD" . $qdfeat . "_" . $bin_width . ":QD");
+        }
+    } else {
+            push(@tracktypes, "QD" . $qdfeat . "_" . $bin_width . ":QD");
+    }
+      #my @feats = $segment->features( -type => "QD" . $qdfeat . "_" . $bin_width . ":QD"); # original
+      my @feats = $segment->features( -types => \@tracktypes );
+    print LOG "number of features using \@tracktypes: " . scalar(@feats) . "\n" if ($debug);
+
+    @feats = sort { $a->start() <=> $b->start() } @feats;
+    my @combined_feats = ();
+    push(@combined_feats,shift(@feats));
+    print LOG "\@combined_feats: '" . scalar(@combined_feats) . "', \@feats: '" . scalar(@feats) . "'\n" if ($debug);
+    for my $feat (@feats) {
+        if ($combined_feats[$#combined_feats] && $combined_feats[$#combined_feats]->start() == $feat->start()) {
+            $combined_feats[$#combined_feats]->score($combined_feats[$#combined_feats]->score() + $feat->score());
+        } else {
+            push(@combined_feats,$feat);
+        }
+    }
+    @feats = @combined_feats;
+
       if ($strands) {
         my @nfeats = ();
         foreach my $feat (@feats) {
           my $nfeat = $feat->clone();
           $feat->score($feat->attributes('watson'));
           $nfeat->score(0 - $feat->attributes('crick')) if ($feat->attributes('crick'));
-#          $nfeat->score(0 - $feat->score());
           push(@nfeats,$nfeat);
         }
         push(@feats,@nfeats);
@@ -272,6 +296,10 @@ sub annotate {
 
       $type = $feats[0]->type()->asString();
       $type =~ s/:.+//;# this is to simplify type name
+    if ($combined) {
+        $type = $qdfeat;
+    }
+    #$key_addn = "CF-all";
       print LOG "\$type = '$type'\n" if ($debug);
     
       $feature_list->add_type($type => {
@@ -857,7 +885,9 @@ sub configure_sites {
 	  if ($method =~ /QD([.-\w]+)_\d+/ && !$SITES{$1}) {
 	    #$SITES{$1} = $method;
 	    $SITES{$1} = ++$pos;
-	  }
+	  } elsif ($method =~ /QD([.-\w!][^_]+)$/ && !$SITES{$1}) {
+        $SITES{$1} = ++$pos;
+      }
 	}
 	#$config->{sites} = \@SITES;
 	#@SITES = keys(%SITES);# I don't think @SITES is ever used for anything
