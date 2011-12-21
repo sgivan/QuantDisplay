@@ -40,7 +40,7 @@ my (%SITES,@SITES);
 my @BINS = (50,100,1000,5000,10000,25000,100000,250000);
 my $FCOUNT = 0;
 
-my $debug = 0;
+my $debug = 1;
 if ($debug) {
   open(LOG,">>/tmp/QuantDisplay.log") or warn "can't open QuantDisplay.log";
   print LOG "\n\n" . "+" x 10 . "\nQuantDisplay\t" . scalar(localtime) . "\n";
@@ -257,6 +257,7 @@ sub annotate {
     if ($qdfeat =~ /!/) {
         $combined = 1;
         for my $qdfeat (split /!/, $qdfeat) {
+            $qdfeat =~ s/QD//;
             push(@tracktypes, "QD" . $qdfeat . "_" . $bin_width . ":QD");
         }
     } else {
@@ -396,14 +397,31 @@ sub annotate {
         print LOG "\tfeature count: ", $segment2->feature_count(), "\n\n";
       }
 
+        my @tracktypes = ();
+        if ($qdfeat =~ /!/) {
+            for my $feat (split /!/, $qdfeat) {
+                print LOG "pushing '$feat' onto \@tracktypes\n" if ($debug);
+                $feat =~ s/QD//;
+                #push(@tracktypes,"$feat" . ":cufflinks");
+                push(@tracktypes,"$feat" . ":QDread");
+            }
+        
+        } else {
+            print LOG "pushing '$qdfeat' onto \@tracktypes\n" if ($debug);
+            #push(@tracktypes,$qdfeat);
+            push(@tracktypes,"$qdfeat:QDread");
+        }
+
       %feature_count = $segment2->types( -enumerate => 1 );
 
+    for my $qdfeat (@tracktypes) {
       print LOG "feature count for '", $segment2->seq_id(), "'\n" if ($debug);
       foreach my $key (keys %feature_count) {
         print LOG "feature: '$key'\n" if ($debug);
-        if (substr($key,0,index($key,':')) eq $qdfeat) {
+        #if (substr($key,0,index($key,':')) eq $qdfeat) {
+        if ($key eq $qdfeat) {
           print LOG "\tnumber of '$key' features: '", $feature_count{$key}, "'\n" if ($debug);
-          $actual_count = $feature_count{$key};
+          $actual_count += $feature_count{$key};
           if ($actual_count > $config->{max_features}) {
             $factor = int($actual_count/$config->{max_features});
             $factor += 1 if ($factor == 1);
@@ -412,15 +430,47 @@ sub annotate {
           last;
         }
       }
+    }
+
+#      print LOG "feature count for '", $segment2->seq_id(), "'\n" if ($debug);
+#      foreach my $key (keys %feature_count) {
+#        print LOG "feature: '$key'\n" if ($debug);
+#        if (substr($key,0,index($key,':')) eq $qdfeat) {
+#          print LOG "\tnumber of '$key' features: '", $feature_count{$key}, "'\n" if ($debug);
+#          $actual_count = $feature_count{$key};
+#          if ($actual_count > $config->{max_features}) {
+#            $factor = int($actual_count/$config->{max_features});
+#            $factor += 1 if ($factor == 1);
+#            $max = 1;
+#          }
+#          last;
+#        }
+#      }
       
-      my $iterator = $segment2->features(-types => "$qdfeat", -iterator => 1);
+#    my @tracktypes = ();
+#    if ($qdfeat =~ /!/) {
+#        for my $feat (split /!/, $qdfeat) {
+#            print LOG "pushing '$feat' onto \@tracktypes\n" if ($debug);
+#            $feat =~ s/QD//;
+#            push(@tracktypes,"$feat" . ":cufflinks");
+#        }
+#    
+#    } else {
+#        print LOG "pushing '$qdfeat' onto \@tracktypes\n" if ($debug);
+#        push(@tracktypes,$qdfeat);
+#    }
+    #@tracktypes = qw/ CF-1 /;
+      #my $iterator = $segment2->features(-types => "$qdfeat", -iterator => 1);
+      #my $iterator = $segment2->features(-types => \@tracktypes, -iterator => 1);
+      my $iterator = $segment2->features(-types => \@tracktypes, -iterator => 1);
+        print LOG "\$iterator isa '" . ref($iterator) . "'\n" if ($debug);
 
       my ($feat_cnt,$key_addn,$print_feat) = (0,0,0);
       $actual_count = 0 if ($config->{data_normalized}); # because now we use QDcount to determine "actual" number of features
 
       while (my $feat = $iterator->next_seq()) {
         ++$feat_cnt;
-        
+        print LOG "\$feat_cnt = $feat_cnt\n" if ($debug);  
         #$key_addn = $feat->notes() if ($feat_cnt == 1);
         #$key_addn = $config->{dataset_display_name}->{$qdfeat} || $qdfeat;
         if (!$config->{data_normalized}) {
