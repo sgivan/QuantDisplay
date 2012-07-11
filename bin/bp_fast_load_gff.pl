@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 #
 # $Id: bp_fast_load_gff.pl,v 3.7 2010/04/01 17:09:55 givans Exp $
 #
@@ -435,6 +435,9 @@ if ($DEBUG) {
 }
 print STDERR "Done...\n" if ($DO_FAST);
 print STDERR "Closing fgroup, ftype, fattribute pipes\n" if ($DO_FAST);
+print STDERR "If error messages are generated, reconcile data with fdata, fgroup and ftype tables\n";
+print STDERR "When an error message is generated, it usually reflects a problem with the ftype table\n \
+This might require manual entry of the row, which isn't ususally very difficult.";
 
 
 
