@@ -1,2 +1,4 @@
-mysql --user $1 --password=$2 -D $3 -N $5 -e "SELECT t.fmethod, min(ff.fattribute_value), max(ff.fattribute_value), avg(ff.fattribute_value), sum(ff.fattribute_value), count(ff.fid) FROM fattribute_to_feature ff, fdata d, ftype t WHERE t.fsource = '$4' AND t.ftypeid = d.ftypeid AND d.fid = ff.fid GROUP BY t.fmethod"
+#!/bin/bash
+#mysql --user $1 --password=$2 --host $3 --port $4 -D $3 -N $5 -e "SELECT t.fmethod, min(ff.fattribute_value), max(ff.fattribute_value), avg(ff.fattribute_value), sum(ff.fattribute_value), count(ff.fid) FROM fattribute_to_feature ff, fdata d, ftype t WHERE t.fsource = '$4' AND t.ftypeid = d.ftypeid AND d.fid = ff.fid GROUP BY t.fmethod"
+mysql --user $1 --password=$2 --host $3 --port $4 --database $5 --skip-column-names $7 -e "SELECT t.fmethod, min(ff.fattribute_value), max(ff.fattribute_value), avg(ff.fattribute_value), sum(ff.fattribute_value), count(ff.fid) FROM fattribute_to_feature ff, fdata d, ftype t WHERE t.fsource = '$6' AND t.ftypeid = d.ftypeid AND d.fid = ff.fid GROUP BY t.fmethod"
 
