@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 # $Id: QuantDisplay_load.pl,v 4.9 2009/06/09 19:41:28 givans Exp $ 
 #
 #     QuantDisplay_load -- generate feature bins for gbrowse
