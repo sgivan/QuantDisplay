@@ -289,7 +289,8 @@ sub traverse {
                         # each element of $feature list looks like this:
                         # [ stop coordinate, [ score, phase, group, strand ], tally, start coordinate ]
                         #
-                        if (defined(@$feature_list)) {
+                        if (ref($feature_list) eq 'ARRAY' && @$feature_list) {
+                        #if (defined(@$feature_list)) {# generates a deprecated warning
                             #
                             # loop through features in this slice
                             # sort features by stop coordinate (we already know about start coordinate)
