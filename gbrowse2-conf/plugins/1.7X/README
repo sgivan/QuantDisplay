@@ -1,0 +1,6 @@
+This version of the plugin works with gbrowse versions up to 1.7X.
+
+The main difference is that the QD histogram data is stored in the
+main gbrowse database vs. the detail feature database.
+
+
