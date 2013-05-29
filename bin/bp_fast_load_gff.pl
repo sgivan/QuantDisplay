@@ -26,6 +26,7 @@ use constant FATTRIBUTE => 'fattribute';
 use constant FATTRIBUTE_TO_FEATURE => 'fattribute_to_feature';
 
 my $DO_FAST = eval "use POSIX 'WNOHANG'; 1;";
+#$DO_FAST = 0;
 $| = 1;
 
 =head1 NAME
@@ -86,7 +87,8 @@ Command-line options can be abbreviated to single-letter options.
 e.g. -d instead of --database.
 
    --database 		       Mysql database name
-   --mach								 Mysql host
+   --mach				Mysql host (localhost)
+   --port           MySQL port (3306)
    --create              Reinitialize/create data tables without asking
    --local               Try to load a remote database using local data.
    --user                Username to log in as
@@ -131,7 +133,7 @@ sub insert_sequence {
 
 package main;
 
-my ($DSN,$CREATE,$USER,$PASSWORD,$FASTA,$FAILED,$LOCAL,%PID,$MAX_BIN,$HOST,$ND,$NO,$NODB,$NI,$DEBUG,$LOWMEM,$TEMP);
+my ($DSN,$CREATE,$USER,$PASSWORD,$FASTA,$FAILED,$LOCAL,%PID,$MAX_BIN,$HOST,$HOSTPORT,$ND,$NO,$NODB,$NI,$DEBUG,$LOWMEM,$TEMP);
 #my $path_to_temp = '/usr/local/scratch';
 
 if ($DO_FAST) {
@@ -155,6 +157,7 @@ GetOptions (
 	'fasta:s'       => \$FASTA,
 	'maxbin:s'      => \$MAX_BIN,
 	'mach:s'				=>	\$HOST,
+    'port:i'        =>  \$HOSTPORT,
 	'nodownload'    =>  \$ND,
 	'nooverwrite'   =>  \$NO,
 	'nodbtouch'     =>  \$NODB,
@@ -180,6 +183,8 @@ if (!$HOST) {
 	$HOST = 'localhost';
 }
 
+$HOSTPORT = $HOSTPORT || 3306;
+
 #my $path_to_temp = '/usr/local/scratch';
 my $path_to_temp = '/tmp';
 $path_to_temp = $TEMP if ($TEMP);
@@ -198,7 +203,12 @@ $path_to_temp = $TEMP if ($TEMP);
 #my $db = Bio::DB::GFF->new(-adaptor=>'dbi::mysql',-dsn => "dbi:mysql:database=$DSN;host=pearson.science.oregonstate.local;user=brachy_cluster;password=brachypodium") or die "Can't open database: ",Bio::DB::GFF->error,"\n";
 
 #my $db = Bio::DB::GFF->new(-adaptor=>'dbi::mysql',-dsn => "dbi:mysql:database=$DSN;host=$HOST;port=53307;user=$USER;password=$PASSWORD") or die "Can't open database: ",Bio::DB::GFF->error,"\n";
-my $db = Bio::DB::GFF->new(-adaptor=>'dbi::mysql',-dsn => "dbi:mysql:database=$DSN;host=$HOST;port=53307;user=$USER;password=$PASSWORD;") or die "Can't open database: ",Bio::DB::GFF->error,"\n";
+#my $db = Bio::DB::GFF->new(-adaptor=>'dbi::mysql',-dsn => "dbi:mysql:database=$DSN;host=$HOST;port=53307;user=$USER;password=$PASSWORD;") or die "Can't open database: ",Bio::DB::GFF->error,"\n";
+#my $db = Bio::DB::GFF->new(-adaptor=>'dbi::mysql',-dsn => "dbi:mysql:database=$DSN;host=$HOST;port=$HOSTPORT;user=$USER;password=$PASSWORD;") or die "Can't open database: ",Bio::DB::GFF->error,"\n";
+my $db = Bio::DB::GFF->new(-adaptor=>'dbi::mysql',-dsn => "dbi:mysql:database=$DSN;host=$HOST;port=$HOSTPORT;mysql_local_infile=1;user=$USER;password=$PASSWORD;") or die "Can't open database: ",Bio::DB::GFF->error,"\n";
+if ($DEBUG) {
+    print "\nconnection details: dbi:mysql:database=$DSN;host=$HOST;port=$HOSTPORT;mysql_local_infile=1;user=$USER;password=$PASSWORD;\n";
+}
 
 #
 # end of modification
@@ -309,7 +319,7 @@ while (<>) {
       ($1,'reference','Component',$2,$3,'.','.','.',$gff3 ? "ID=Sequence:$1": qq(Sequence "$1"));
   } elsif (/^\#/) {
     next;
-  } else {
+  } else { # GFF tab-delimited line
     ($ref,$source,$method,$start,$stop,$score,$strand,$phase,$group) = split "\t";
   }
   next unless defined $ref;
@@ -356,8 +366,11 @@ while (<>) {
 
   my $bin = bin($start,$stop,$db->min_bin);
 	# new -- add call to flush for FH's that were losing DB connection
-  $FH{ FDATA()  }->print(    join("\t",$fid,$ref,$start,$stop,$bin,$ftypeid,$score,$strand,$phase,$gid,$target_start,$target_stop),"\n"   ) unless ($NODB);
-  print("fdata: ",join("\t",$fid,$ref,$start,$stop,$bin,$ftypeid,$score,$strand,$phase,$gid,$target_start,$target_stop),"\n") if ($DEBUG);
+
+    #$FH{ FDATA()  }->print(    join("\t",$fid,$ref,$start,$stop,$bin,$ftypeid,$score,$strand,$phase,$gid,$target_start,$target_stop),"\n"   ) unless ($NODB);
+    $FH{FDATA()}->print(join("\t",$fid,$ref,$start,$stop,$bin,$ftypeid,$score,$strand,$phase,$gid,$target_start,$target_stop),"\n") unless ($NODB);
+    $FH{FDATA()}->flush();
+    print("fdata: ",join("\t",$fid,$ref,$start,$stop,$bin,$ftypeid,$score,$strand,$phase,$gid,$target_start,$target_stop),"\n") if ($DEBUG);
 	if (!$DONE{"fgroup$;$gid"}++) {
 #	   	$FH{ FGROUP() }->print(    join("\t",$gid,$group_class,$group_name),"\n"              );# unless $DONE{"fgroup$;$gid"}++;
 # 		$FH{ FGROUP() }->flush();
@@ -658,6 +671,7 @@ END
 				$PID{$pid} = $_;
 				print STDERR "pausing for 0.5 sec..." if $DO_FAST;
 				select(undef,undef,undef,0.50); # work around a race condition
+                print "just ran select\n" if ($DEBUG);
 				print STDERR "select() ok\n";
 			} else {  # THIS IS IN CHILD PROCESS
 				die "Couldn't fork: $!" unless defined $pid;
