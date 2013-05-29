@@ -4,13 +4,14 @@ use strict;
 use Bio::DB::GFF;
 use Getopt::Std;
 use Cwd;
-use vars qw/ $opt_h $opt_f $opt_d $opt_u $opt_p $opt_H $opt_b $opt_r $opt_l $opt_a $opt_A $opt_R $opt_v $opt_c $opt_q $opt_s $opt_F /;
+use vars qw/ $opt_h $opt_f $opt_d $opt_u $opt_p $opt_P $opt_H $opt_b $opt_r $opt_l $opt_a $opt_A $opt_R $opt_v $opt_c $opt_q $opt_s $opt_F /;
 $Getopt::Std::STANDARD_HELP_VERSION = 1;
 getopts('hf:du:p:H:b:r:R:l:aAvcq:s:F');
 
 my $user = $opt_u || 'yeast';
 my $password = $opt_p || undef;
 my $dbhost = $opt_H || 'lewis2.rnet.missouri.edu';
+my $dbport = $opt_P || 53307;
 my $db = $opt_b || 'yeast_chr1';
 my $help = $opt_h || undef;
 my $debug = $opt_d || undef;
@@ -65,7 +66,8 @@ Options
 -v		verbose output to terminal
 -u		user name for mysql database (default = 'yeast')
 -p		use a password when connecting to MySQL database
--H		mysql hostname (default = pearson)
+-H		mysql hostname (default = lewis2)
+-P      mysql port (default = 53307)
 -b		mysql database name (default = 'yeast_chr1')
 -c		for each feature, count based on QDcount attribute
 -l		with default sorting, start at this reference molecule
@@ -106,7 +108,7 @@ DEBUG
 
 my $DB = Bio::DB::GFF->new(
 						-adaptor	    	=>		'dbi::mysql',
-						-dsn				=>		"dbi:mysql:" . $db . ";host=" . $dbhost . ";port=53307",
+						-dsn				=>		"dbi:mysql:" . $db . ";host=" . $dbhost . ";port=$dbport",
 						-user				=>		$user,
 						-pass				=>		$password,
 						);
