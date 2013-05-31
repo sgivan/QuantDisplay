@@ -26,7 +26,8 @@ use Bio::Graphics::Glyph::xyplot;
 use vars qw/ @ISA /;
 #use constant DEFAULT_POINT_RADIUS=>4;
 #our $VERSION = 1.5;
-our $VERSION = '$Revision: 1.3 $';
+#our $VERSION = '$Revision: 1.3 $';
+our $VERSION = 1.8;
 @ISA = qw/ Bio::Graphics::Glyph::xyplot /;
 
 my %SYMBOLS = (
@@ -35,7 +36,7 @@ my %SYMBOLS = (
 	       disc     => \&draw_disc,
 	       point    => \&draw_point,
 	      );
-my $debug = 1;
+my $debug = 0;
 if ($debug) {
 	open(LOG,">>/tmp/qdplot.log") or warn("can't open qdplot.log: $!");
 	print LOG "+" x 50 . "\n_qdplot()\n\n";
@@ -244,6 +245,12 @@ sub draw {
   
 		foreach (@parts) {
 			my $s = $_->score;
+			#if ($s > $max_score) {
+			#	print LOG "resetting score to max score because '$s' > '$max_score'\n" if ($debug);
+			#	$s = $max_score;
+			#} else {
+			#	print LOG "not resetting score to max score because '$s' <= '$max_score'\n" if ($debug);
+			#}
 			next unless defined $s;
 			$_->{_y_position}   = $self->score2position($s);
 			if ($debug) {
@@ -254,7 +261,6 @@ sub draw {
 			$self->add_feature($_);
 		}
 
-	#  }
 		my $type           = $self->option('graph_type') || $self->option('graphtype') || 'boxes';
 		my (@draw_methods) = $self->lookup_draw_method($type);
 		$self->throw("Invalid graph type '$type'") unless @draw_methods;
@@ -264,11 +270,11 @@ sub draw {
 			$self->$draw_method($gd,$dx,$dy,$y_origin,$force_zero);
 			
 		}
-	 $self->_draw_scale($gd,$scale,$min_score,$max_score,$dx,$dy,$y_origin,$force_zero);
+		$self->_draw_scale($gd,$scale,$min_score,$max_score,$dx,$dy,$y_origin,$force_zero);
 	
 		$self->draw_label(@_)       if $self->option('label');
 		$self->draw_description(@_) if $self->option('description');
-		}
+  }
 }
 # 
 # sub lookup_draw_method {
