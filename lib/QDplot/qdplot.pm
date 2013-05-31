@@ -35,9 +35,9 @@ my %SYMBOLS = (
 	       disc     => \&draw_disc,
 	       point    => \&draw_point,
 	      );
-my $debug = 0;
+my $debug = 1;
 if ($debug) {
-	open(LOG,">/tmp/qdplot.log") or warn("can't open qdplot.log: $!");
+	open(LOG,">>/tmp/qdplot.log") or warn("can't open qdplot.log: $!");
 	print LOG "+" x 50 . "\n_qdplot()\n\n";
 }
 
@@ -93,6 +93,7 @@ sub draw {
   my $self = shift;
   my ($gd,$dx,$dy) = @_;
   my $feats = $self->{factory}->{options}->{features};
+
   if ($debug) {
     print LOG "\ndraw()\n\$self isa '", ref($self), "'\n";
     print LOG "\$gd isa '", ref($gd), "'\n";
@@ -101,6 +102,7 @@ sub draw {
 #    my $feats = $self->{factory}->{options}->{features};
     print LOG "\$feats isa '", ref($feats), "'\n";
     print LOG "\$feats has '", scalar(@$feats), "' elements\n";
+    print LOG "\$self->{factory} isa '", ref($self->{factory}), "'\n";
   }
   my ($left,$top,$right,$bottom) = $self->calculate_boundaries($dx,$dy);
 #  my @parts = $self->parts;
@@ -122,7 +124,11 @@ sub draw {
 	if ($force_zero) {
 		print LOG "forcing origin at zero\n" if ($debug);
 	}
-	$max_score = $self->{factory}->{options}->{max_score} if ($self->{factory}->{options}->{max_score} && $self->{factory}->{options}->{max_score} > 0);
+	$max_score = $self->{factory}->{options}->{max_hscore} if ($self->{factory}->{options}->{max_hscore} && $self->{factory}->{options}->{max_hscore} > 0);
+	#$max_score = $self->{factory}->{options}->{max_score} if ($self->{factory}->{options}->{max_score} && $self->{factory}->{options}->{max_score} > 0);
+	#$max_score = $self->{factory}->{options}->{max_score};
+	#$max_score = $self->{factory}->{options}->{max_hscore};
+	#$max_score = 500;
  	print LOG "min_score = $min_score\nmax_score = $max_score\n";
 # 	print LOG "top = $top\nbottom = $bottom\n" if ($debug);
 
@@ -167,12 +173,12 @@ sub draw {
 	
 	my $y_origin;
   $y_origin = $min_score <= 0 ? $bottom - (0 - $min_score) * $scale : $bottom;
- 	if ($force_zero) {
+# 	if ($force_zero) {
 #			$y_origin = $top + (($bottom - $top)/2);
 # 		my $tdiff = abs($max_score - 0) != 0 ? abs($max_score - 0) : $max_score;
 # 		print LOG "tdiff = $tdiff\n" if ($debug);
 # 		$y_origin = $tdiff * $scale + $top;
- 	}
+# 	}
   $y_origin    = $top if $max_score < 0;
 
 	print LOG "draw() y_origin = $y_origin\n" if ($debug);
@@ -531,76 +537,97 @@ END
 # }
 # 
 sub _draw_scale {
-  my $self = shift;
-  print LOG "\n_draw_scale()\n" if ($debug);
-  my ($gd,$scale,$min,$max,$dx,$dy,$y_origin,$force_zero) = @_;
-  my ($x1,$y1,$x2,$y2) = $self->calculate_boundaries($dx,$dy);
+	my $self = shift;
+	print LOG "\n_draw_scale()\n" if ($debug);
+	my ($gd,$scale,$min,$max,$dx,$dy,$y_origin,$force_zero) = @_;
+	my ($x1,$y1,$x2,$y2) = $self->calculate_boundaries($dx,$dy);
 	my ($iwidth,$iheight) = $gd->getBounds();
- 	$x1 = 1;
- 	$x2 = $iwidth - 1;
- 	
- 	if ($min < 0) {
- 	  $min = $max = abs($min) > abs($max) ? $min : $max;
- 	  $min = 0 - $min;
- 	}
- 	
+	my $pad_left = $self->panel->pad_left() || 1;
+	my $pad_right = $self->panel->pad_right() || 1;
+	#$x1 = 1;
+	$x1 = $pad_left;
+	#$x2 = $iwidth - 1;
+	#$x2 = $iwidth - 10;
+	$x2 = $iwidth - $pad_right;
+
+	if ($min < 0) {
+	  $min = $max = abs($min) > abs($max) ? $min : $max;
+	  $min = 0 - $min;
+	}
+
 	$y_origin = ($min+$max)/2 if ($force_zero);
 
-  my $side = $self->_determine_side();
+	my $side = $self->_determine_side();
 
-  my $fg    = $self->scalecolor;
-  my $font  = $self->font('gdTinyFont');
-	print LOG "x1 = $x1\nx2 = $x2\ny1 = $y1\ny2 = $y2\nscale = $scale\n" if ($debug);
-	print LOG "min = $min\nmax = $max\ndx = $dx\ndy = $dy\ny_origin = $y_origin\n" if ($debug);
-	print LOG "side = $side\nfg = $fg\nfont height = " . $font->height(), "\n" if ($debug);
+	my $fg    = $self->scalecolor;
+	#my $font  = $self->font('gdSmallFont');
+	my $font  = $self->font(GD::Font->Tiny());
+	if ($debug) {
+		print LOG "x1 = $x1\nx2 = $x2\ny1 = $y1\ny2 = $y2\nscale = $scale\n";
+		print LOG "min = $min\nmax = $max\ndx = $dx\ndy = $dy\ny_origin = $y_origin\n";
+		print LOG "side = $side\nfg = $fg\nfont height = " . $font->height(), "\n";
+		print LOG "pad_left = '$pad_left'\n";
+	}
 
+	#$gd->line($x2,$self->score2position($max),$x2,$self->score2position($min),$fg);# vertical line of right scale bar
 	$gd->line($x2,$self->score2position($max),$x2,$self->score2position($min),$fg);# vertical line of right scale bar
+	#$gd->line($x1-20,$self->score2position($max),$x1-20,$self->score2position($min),$fg);# vertical line of left scale bar 48
 	$gd->line($x1,$self->score2position($max),$x1,$self->score2position($min),$fg);# vertical line of left scale bar 48
 
 	my @points = ();
 	if ($min == $max) {
 		@points = ([$y2,$max],[$y_origin,'0']);
 	} elsif ($min >= 0) {
-  	@points = ([$self->score2position($max),$max],[$self->score2position(($min+$max) * 0.75),($min+$max) * 0.75],[$self->score2position(($min+$max)/2),($min+$max)/2],[$self->score2position(($min+$max)/4),($min+$max)/4],[$self->score2position($min),$min]);#SAG	
+		@points = ([$self->score2position($max),$max],[$self->score2position(($min+$max) * 0.75),($min+$max) * 0.75],[$self->score2position(($min+$max)/2),($min+$max)/2],[$self->score2position(($min+$max)/4),($min+$max)/4],[$self->score2position($min),$min]);#SAG	
 	} else {
-  	@points = ([$self->score2position($max),$max],[$self->score2position($max * 0.5),$max * 0.5],[$self->score2position($min),$min],[$self->score2position(0.01),'0'],[$self->score2position($min/2),$min/2]);#SAG	
+		@points = ([$self->score2position($max),$max],[$self->score2position($max * 0.5),$max * 0.5],[$self->score2position($min),$min],[$self->score2position(0.01),'0'],[$self->score2position($min/2),$min/2]);#SAG	
 	}
 
-  my $last_font_pos = -99999999999;
+	my $last_font_pos = -99999999999;
 
-  for (sort { $b->[1] <=> $a->[1] } @points) {
+	# print ticks and digits of left and right scales
+	for (sort { $b->[1] <=> $a->[1] } @points) {
 		print LOG "point: " . $_->[0] . " : " . $_->[1] . "\n" if ($debug);
-#		ticks of right scale bar
-#		print LOG "printing right scale tick for $_->[1]\n" if ($debug);
-    $gd->line($x2,$_->[0],$x2-5,$_->[0],$fg) if $side eq 'right' || $side eq 'both';
-#		print LOG "printing left scale tick for $_->[1]\n" if ($debug);
-#		ticks of left scale bar
-    $gd->line($x1,$_->[0],$x1+5,$_->[0],$fg) if $side eq 'right' || $side eq 'both';# ticks of scale bar
+		my $scalenumber = $_->[1];
+#		if ($scalenumber >= 1000) {
+#			$scalenumber /= 1000;
+#			$scalenumber .= "K";
+#		}
+	#	ticks of right scale bar
+	#	print LOG "printing right scale tick for $_->[1]\n" if ($debug);
+		#$gd->line($x2,$_->[0],$x2-5,$_->[0],$fg) if $side eq 'right' || $side eq 'both';
+		$gd->line($x2,$_->[0],$x2+5,$_->[0],$fg) if $side eq 'right' || $side eq 'both';
 
-    my $font_pos = $_->[0]-($font->height/2);
-#		print LOG "font_pos = $font_pos\nlast_font_pos = $last_font_pos\n";
-    next unless $font_pos > $last_font_pos + $font->height; # prevent labels from clashing
-#
-#
-#			left scale numbers
-#
-			print LOG "printing '", $_->[1], "' at $font_pos\n" if ($debug);
-      $gd->string($font,
-		  $x1+6,$font_pos,
-		  $_->[1],
-		  $fg);
+	#	print LOG "printing left scale tick for $_->[1]\n" if ($debug);
+	#	ticks of left scale bar
+		#$gd->line($x1,$_->[0],$x1+5,$_->[0],$fg) if $side eq 'right' || $side eq 'both';# ticks of scale bar
+		$gd->line($x1-5,$_->[0],$x1,$_->[0],$fg) if $side eq 'right' || $side eq 'both';# ticks of scale bar
 
-#			right scale numbers
-#
-      $gd->string($font,
-		  ($x2 - 6) - $font->width * length($_->[1]) - 1,$font_pos,
-		  $_->[1],
-		  $fg);
+		my $font_pos = $_->[0]-($font->height/2);
+	#		print LOG "font_pos = $font_pos\nlast_font_pos = $last_font_pos\n";
+		next unless $font_pos > $last_font_pos + $font->height; # prevent labels from clashing
+	#
+	#
+	#	left scale numbers
+	#
+		print LOG "printing left scale number '", $_->[1], "' at $font_pos\n" if ($debug);
+		#$gd->string($font,$x1+6,$font_pos,$_->[1], $fg);
+		# print scale number starting at ($x1 - 6) - (width of string)
+		$gd->string($font,($x1-6) - ($font->width()*length($scalenumber)),$font_pos,$scalenumber, $fg);
+		#$gd->string($font,$x1,$font_pos,$_->[1], $fg);
 
-			$gd->line($x1+2 + ($x1 + 7 + $font->width * length($_->[1]) +2),$_->[0],$x2 - $font->width * length($_->[1]) - 16,$_->[0],$gd->colorAllocate(200,200,200));
+	#	right scale numbers
+	#
+		#$gd->string($font,($x2 - 6) - $font->width * length($_->[1]) - 1,$font_pos,$_->[1],$fg);
+		$gd->string($font,$x2 + 6,$font_pos,$scalenumber,$fg) unless ($max >= 10000);
+
+	#	horizontal lines across histogram plot corresponding to ticks in left and right scale
+		#$gd->line($x1+2 + ($x1 + 7 + $font->width * length($_->[1]) +2),$_->[0],$x2 - $font->width * length($_->[1]) - 16,$_->[0],$gd->colorAllocate(200,200,200));
+		#$gd->line($x1,$_->[0],$x2 - $font->width * length($_->[1]) - 16,$_->[0],$gd->colorAllocate(200,200,200));
+		$gd->line($x1,$_->[0],$x2,$_->[0],$gd->colorAllocate(200,200,200));
 		#print LOG $_->[1] . " has width = " . $font->width * length($_->[1]) . "\n";
-   $last_font_pos = $font_pos;
-  }
+		$last_font_pos = $font_pos;
+	}
 
 }
 # 
@@ -695,7 +722,8 @@ sub filled_box {
   my $self = shift;
   my $gd = shift;
   my ($x1,$y1,$x2,$y2,$bg,$fg,$force_zero) = @_;# $y2 is y_origin
-  my $font  = $self->font('gdTinyFont');
+  #my $font  = $self->font('gdTinyFont');
+  my $font  = $self->font(GD::Font->Tiny());
 	
 #  $bg ||= $self->bgcolor;
 #  $fg ||= $self->fgcolor;
@@ -733,11 +761,9 @@ sub filled_box {
 
   $bg = $self->set_pen($linewidth,$fg) if $linewidth > 1;
 
-  $gd->line($x1,$y1+$linewidth,$x1,$y2-$linewidth,$fg)
-    if $x1 < $self->panel->pad_left;
+  $gd->line($x1,$y1+$linewidth,$x1,$y2-$linewidth,$fg) if $x1 < $self->panel->pad_left;
 
-  $gd->line($x2,$y1+$linewidth,$x2,$y2-$linewidth,$fg)
-    if $x2 > $width - $self->panel->pad_right;
+  $gd->line($x2,$y1+$linewidth,$x2,$y2-$linewidth,$fg) if $x2 > $width - $self->panel->pad_right;
 }
 
 sub minmax {
@@ -783,6 +809,7 @@ sub _part_color {
 
 }
 
+#sub label {1}
 
 1;
 
