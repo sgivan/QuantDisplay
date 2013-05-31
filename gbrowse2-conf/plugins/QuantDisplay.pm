@@ -31,7 +31,7 @@ use Bio::Graphics::Browser2::Plugin;
 use Bio::DB::GFF;
 use CGI qw(:standard *table);
 use vars '$VERSION','@ISA';
-$VERSION = '2.01';# must arbitrarily update this after moving to git
+$VERSION = '2.10';# must arbitrarily update this after moving to git
 
 @ISA = qw(Bio::Graphics::Browser2::Plugin);
 
@@ -40,7 +40,7 @@ my (%SITES,@SITES);
 my @BINS = (50,100,1000,5000,10000,25000,100000,250000);
 my $FCOUNT = 0;
 
-my $debug = 1;
+my $debug = 0;
 if ($debug) {
   open(LOG,">>/tmp/QuantDisplay.log") or warn "can't open QuantDisplay.log";
   print LOG "\n\n" . "+" x 10 . "\nQuantDisplay\t" . scalar(localtime) . "\n";
@@ -105,45 +105,58 @@ sub description {
 }
 
 sub annotate {
-  my $self = shift;
-  my $segment = shift;
-  print LOG "\nannotate()\n" if ($debug);
-  my $config  = $self->configuration;
-  my $ref = $segment->seq_id();
-  return undef unless ($config->{on});
-  $self->configure_sites();
+	my $self = shift;
+	my $segment = shift;
+	print LOG "\nannotate()\n" if ($debug);
+	my $config  = $self->configuration;
+	my $ref = $segment->seq_id();
+	return undef unless ($config->{on});
+	$self->configure_sites();
 
-  if (0) {
-    print LOG "\n\n";
-    print LOG "current configuration:\n";
-    print LOG "\$self isa '", ref($self), "'\n";
-    print LOG "\$config isa '", ref($config), "'[$config]\n";
-    foreach my $key (keys %$config) {
-    print LOG "\$key = '$key'\n";
-    if ($config->{$key}) {
-        print LOG "$key -> ", $config->{$key}, "\n";
-    } else {
-      print LOG "config '$key' has no setting\n";
-    }
-  }
-  print LOG "\n\n";
-  }
+	if (0) {
+		print LOG "\n\n";
+		print LOG "current configuration from call to configuration():\n";
+		print LOG "\$self isa '", ref($self), "'\n";
+		print LOG "\$config isa '", ref($config), "'[$config]\n";
+		foreach my $key (keys %$config) {
+			print LOG "\$key = '$key'\n";
+			if ($config->{$key}) {
+				print LOG "$key -> ", $config->{$key}, "\n";
+			} else {
+				print LOG "config '$key' has no setting\n";
+			}
+		}
+		print LOG "\n\n";
+	}
 
-  $self->_configure_browser($config);
+	$self->_configure_browser($config);
 
-  my $seglength = $segment->length();
-  my $window = $config->{window};
-  my $max_detail = $config->{max_detail} || 0;
-#  my $min_score = $config->{min_score} || '0';
-  my $max_score = $config->{max_score} || undef;
-  my $graph_height = $config->{graph_height};
-  my $clip = $config->{clip} || '0';
+	my $seglength = $segment->length();
+	my $window = $config->{window};
+	my $max_detail = $config->{max_detail} || 0;
+	#  my $min_score = $config->{min_score} || '0';
+	#my $max_score = $config->{max_score} || undef;
+	my $max_hscore = $config->{max_hscore} || undef;
+	my $graph_height = $config->{graph_height};
+	my $clip = $config->{clip} || '0';
+	my $state = 'n/a';
+	my $render = 'n/a';
+	$render = $self->renderer();
+	$state = $render->request();
+	my $multiplier = $render->details_mult() || 'n/a';	
+
+	if ($debug) {
+		print LOG "\nseglength = '$seglength'\nwindow = '$window'\nmax_detail = '$max_detail'\n \
+			  max_hscore = '$max_hscore'\ngraph_height = '$graph_height'\nclip = '$clip\n \
+			  multiplier = '$multiplier'\nstate is '", ref($state), "'\nrender is '", ref($render), "'\n";
+	}
+
 
 
   if ($debug) {
     my $page_settings = $self->page_settings();
     while(my($key,$value) = each %$page_settings) {
-      print LOG "config '$key' => '$value'\n";
+      print LOG "page_settings '$key' => '$value'\n";
       if ($key eq 'track_collapsed') {
         print LOG "printing collapsed tracks:\n";
         while (my($key2,$value2) = each %$value) {
@@ -309,7 +322,8 @@ sub annotate {
           height      =>  $graph_height,
           scale       =>  'right',
 #          min_score   =>  $min_score,
-          max_score   =>  $max_score ? $max_score : undef,
+#          max_score   =>  $max_score ? $max_score : undef,
+          max_hscore   =>  $max_hscore ? $max_hscore : undef,
           score       =>  sub { my $feat = shift; return $feat->score(); },
 #           score       =>  sub {
 #                       my $feat = shift;
@@ -319,7 +333,8 @@ sub annotate {
 #                         return $feat->score();
 #                       }
 #                     },
-          clip        =>  $clip,
+#          clip        =>  $clip,
+          clip        =>  1,
           label       => "window = $bin_width nt",
 #           part_color  =>  sub {# see available colors with showrgb
 #                   #my $feat = shift;
@@ -621,33 +636,40 @@ sub reconfigure {
   if ($debug) {
 	print LOG "in reconfigure(), current config:\n";
 	foreach my $ckey (keys %$current_config) {
-		print LOG "$ckey = " . $current_config->{$ckey} . "\n";
+		print LOG "config key $ckey = " . $current_config->{$ckey} . "\n";
 	}
   }
 
 #  %SITES = map {$SITES{$_} = 0} keys(%SITES);
 #  %$current_config = map {$_ => 1} ($self->config_param('QD_display'));
   foreach my $set (keys(%{$current_config->{sites}})) {
+	print LOG "setting set '$set' to zero\n" if ($debug);
 	$current_config->{$set} = 0;
-    $current_config->{"QD_display_order_$set"} = $self->config_param("QD_display_order_$set");
+	$current_config->{$set . "_strands"} = 0;
+	$current_config->{"QD_display_order_$set"} = $self->config_param("QD_display_order_$set");
   }
   foreach my $display ($self->config_param('QD_display')) {
-    print LOG "setting '$display' to 1\n" if ($debug);
+    print LOG "setting \$display='$display' to 1\n" if ($debug);
     $current_config->{$display} = 1;
   }
   $self->_display_order();
 
   foreach my $key ($self->config_param('QD_separate_strands')) {
     $current_config->{$key} = 1;
+	print LOG "QD_separate_strands key = '$key'\n" if ($debug);
   }
   
   $current_config->{window} = $self->config_param('QD_window');
   $current_config->{max_detail} = $self->config_param('QD_max_detail');
   $current_config->{on} = $self->config_param('on');
   $current_config->{min_score} = $self->config_param('QD_min_score') || 0;
-  $current_config->{max_score} = $self->config_param('QD_max_score');
+  #$current_config->{max_score} = $self->config_param('QD_max_score');
+  #$current_config->{max_hscore} = $self->config_param('QD_max_score');
+  $current_config->{max_hscore} = $self->config_param('QD_max_hscore');
+  #$current_config->{max_hscore} = 1000;
   $current_config->{graph_height} = $self->config_param('QD_graph_height');
-  $current_config->{clip} = $self->config_param('QD_clip') || 0;
+  #$current_config->{clip} = $self->config_param('QD_clip') || 0;
+  $current_config->{clip} = $self->config_param('QD_clip') || 1;
   $current_config->{detail_label} = $self->config_param('QD_detail_label');
   $current_config->{detail_proportional} = $self->config_param('QD_detail_proportional');
   $current_config->{detail_min_tally} = $self->config_param('QD_detail_min_tally') || 0;
@@ -662,6 +684,7 @@ sub reconfigure {
 
 sub configure_form {
   my $self = shift;
+# generate the inline configure form
   print LOG "configure_form()\n" if ($debug);
   my $current_config = $self->configuration;
   #$self->_configure_browser($current_config);
@@ -771,7 +794,7 @@ sub configure_form {
                               );
 
   print LOG "builing max_scores\n" if ($debug);
-  my $max_scores = {
+  my $max_hscores = {
                       1         =>  1,
                       5         =>  5,
                       10        =>  10,
@@ -800,11 +823,11 @@ sub configure_form {
 
   print LOG "building max_scores radio buttons\n" if ($debug);
   my @max_scores = radio_group(
-                                -name     =>  $self->config_name('QD_max_score'),
+                                -name     =>  $self->config_name('QD_max_hscore'),
                                 -values   =>  [0,1,5,10,25,50,75,100,300, 500,800,1000,3000,5000,8000,10000,30000,50000,80000,100000,300000,500000,800000,1000000],
-                                -labels   =>  $max_scores,
+                                -labels   =>  $max_hscores,
                                 -cols     =>  4,
-                                -default  =>  $current_config->{'max_score'} || '0',
+                                -default  =>  $current_config->{'max_hscore'} || '0',
                               );
 
   print LOG "building graph_heights radio buttons\n" if ($debug);
