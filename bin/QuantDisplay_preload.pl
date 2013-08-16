@@ -9,11 +9,11 @@ use Bio::DB::GFF;
 use Getopt::Std;
 use Data::Dumper;
 #use BerkeleyDB;
-use vars qw/ $opt_f $opt_h $opt_d $opt_v $opt_M $opt_o $opt_i $opt_p $opt_c $opt_r $opt_z $opt_s /;
+use vars qw/ $opt_f $opt_h $opt_d $opt_v $opt_M $opt_o $opt_i $opt_p $opt_c $opt_r $opt_z $opt_s $opt_n $opt_N /;
 
-getopts('f:hdvMo:ipc:r:z:s');
+getopts('f:hdvMo:ipc:r:z:snN');
 
-my ($file,$help,$debug,$verbose,$fuzzy,$ignorestrand) = ($opt_f,$opt_h,$opt_d,$opt_v,$opt_z,$opt_s);
+my ($file,$help,$debug,$verbose,$fuzzy,$ignorestrand,$nodups,$noidentical) = ($opt_f,$opt_h,$opt_d,$opt_v,$opt_z,$opt_s,$opt_n,$opt_N);
 my $scorecall = $opt_c || 6;
 my $maxlength = 150; # I don't think this is used anywhere else
 
@@ -41,6 +41,9 @@ options
 -p      preserve all data from original file, otherwise truncates last column
 -c      use the value in this column for QDcount
 -r      when using -c, replace that column with this value (typically -r '.')
+-n      don't count reads with same refmol and start & stop coords
+-N      don't count reads with same ID, refmol and start & stop coords
+        NOTE: -n and -N are mutually exclusive
 -z      use fuzzy coordinate matching
         use like -z 2, which will collapse all reads within 2nt (start or stop coordinates)
 -s      ignore strand of alignment
@@ -155,6 +158,16 @@ while (<IN>) {
     $strand = '+' if ($ignorestrand);
 
     my $pk = "$values[0]\0$start\0$stop\0$strand";
+
+    if ($opt_n) {
+        next if ($db{$pk});
+    } elsif ($opt_N) {
+        if ($db{$pk}) {
+            next if ($group eq $db{$pk}{data}->[2]);
+        }
+    }
+
+
     if ($opt_M) {
         $db{$pk} = $line;
     } else {
