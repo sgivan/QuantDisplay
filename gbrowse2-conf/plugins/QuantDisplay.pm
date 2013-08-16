@@ -1114,10 +1114,15 @@ sub _label {
   }
 
   my $count = $config->{data_normalized} ? sprintf("%.2f", $feature->attributes('QDcount')) : $feature->attributes('QDcount');
+  my $refmol = $feature->location()->seq_id();
+  my $start = $feature->start();
+  my $stop = $feature->end();
   my $max_label_length = 60;# I need to trim long labels or this routine fails when there are lots of features
 
   #$label .= $config->{data_normalized} ? " $count RPM" : " $count X";
-  my $rpm = $config->{data_normalized} ? " $count RPM" : " $count X" . $label;
+  $label = "$refmol" . ":$start-$stop";
+#  my $rpm = $config->{data_normalized} ? " $count RPM" : " $count X" . $label;
+  my $rpm = $config->{data_normalized} ? " $count RPM" : " $count ";
   $label = $rpm . " " . $label;
   foreach my $tag ($feature->get_all_tags()) {
     next if ($tag eq 'QDcount' || $tag eq 'Note');
