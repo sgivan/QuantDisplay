@@ -21,6 +21,7 @@ use strict;
 use Bio::DB::GFF;
 use Getopt::Std;
 use lib '/home/sgivan/lib/perl5';
+use lib '/home/sgivan/projects/COGDB/lib';
 use vars qw/ $opt_h $opt_f $opt_F $opt_d $opt_u $opt_p $opt_H $opt_b $opt_r $opt_l $opt_a $opt_A $opt_R $opt_v $opt_c $opt_o $opt_i $opt_n $opt_m $opt_M $opt_X /;
 
 getopts('hf:Fdu:p:H:b:r:R:laAvco:in:m:M:X:');
@@ -122,7 +123,7 @@ DEBUG
 
 my $DB = Bio::DB::GFF->new(
   -adaptor  =>  'dbi::mysql',
-  -dsn      =>  "dbi:mysql:" . $db . ";host=" . $dbhost . ";port=53307",
+  -dsn      =>  "dbi:mysql:" . $db . ";host=" . $dbhost . ";port=3306",
   -user     =>  $user,
   -pass     =>  $password,
 );
@@ -463,27 +464,28 @@ sub printGFF {
 }
 
 sub fast_fetch {
-  require CGRB::CGRBDB;
-  my $refmol = shift;
+    #require CGRB::CGRBDB;
+    require CGRBDB;
+    my $refmol = shift;
 
-  my %params = (
-    host      =>  $dbhost,
-    db        =>  $db,
-    user      =>  $user,
-    password  =>  $password,
-  );
+    my %params = (
+        host      =>  $dbhost,
+        db        =>  $db,
+        user      =>  $user,
+        password  =>  $password,
+    );
 
-  my $db = CGRBDB->new(\%params);
+    my $db = CGRBDB->new(\%params);
 
-  my $dbh = $db->dbh();
-  my $typeid = get_typeid($db,$refmol);
+    my $dbh = $db->dbh();
+    my $typeid = get_typeid($db,$refmol);
 
-  my $sth = $dbh->prepare("select d.fid, d.fref, d.fstart, d.fstop, d.fstrand, f.fattribute_value from `fdata` d, `fattribute` a, `fattribute_to_feature` f where d.fref = ? AND d.ftypeid = ? AND d.fid = f.fid AND f.fattribute_id = a.fattribute_id AND a.fattribute_name = 'QDcount' ORDER BY d.fstart ASC");
-  $sth->bind_param(1,$refmol);
-  $sth->bind_param(2,$typeid);
-  my $arrayref = $db->dbAction($dbh,$sth,2);
+    my $sth = $dbh->prepare("select d.fid, d.fref, d.fstart, d.fstop, d.fstrand, f.fattribute_value from `fdata` d, `fattribute` a, `fattribute_to_feature` f where d.fref = ? AND d.ftypeid = ? AND d.fid = f.fid AND f.fattribute_id = a.fattribute_id AND a.fattribute_name = 'QDcount' ORDER BY d.fstart ASC");
+    $sth->bind_param(1,$refmol);
+    $sth->bind_param(2,$typeid);
+    my $arrayref = $db->dbAction($dbh,$sth,2);
 #  print "number of results returned: '", scalar(@$arrayref), "'\n" if ($debug);
-  return $arrayref;
+    return $arrayref;
 }
 
 sub get_typeid {

@@ -11,7 +11,7 @@ getopts('hf:du:p:H:b:r:R:l:aAvcq:s:F');
 my $user = $opt_u || 'yeast';
 my $password = $opt_p || undef;
 my $dbhost = $opt_H || 'lewis2.rnet.missouri.edu';
-my $dbport = $opt_P || 53307;
+my $dbport = $opt_P || 3306;
 my $db = $opt_b || 'yeast_chr1';
 my $help = $opt_h || undef;
 my $debug = $opt_d || undef;
@@ -67,7 +67,7 @@ Options
 -u		user name for mysql database (default = 'yeast')
 -p		use a password when connecting to MySQL database
 -H		mysql hostname (default = lewis2)
--P      mysql port (default = 53307)
+-P      mysql port (default = 3306)
 -b		mysql database name (default = 'yeast_chr1')
 -c		for each feature, count based on QDcount attribute
 -l		with default sorting, start at this reference molecule

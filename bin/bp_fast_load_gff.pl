@@ -202,8 +202,6 @@ $path_to_temp = $TEMP if ($TEMP);
 #   or die "Can't open database: ",Bio::DB::GFF->error,"\n";
 #my $db = Bio::DB::GFF->new(-adaptor=>'dbi::mysql',-dsn => "dbi:mysql:database=$DSN;host=pearson.science.oregonstate.local;user=brachy_cluster;password=brachypodium") or die "Can't open database: ",Bio::DB::GFF->error,"\n";
 
-#my $db = Bio::DB::GFF->new(-adaptor=>'dbi::mysql',-dsn => "dbi:mysql:database=$DSN;host=$HOST;port=53307;user=$USER;password=$PASSWORD") or die "Can't open database: ",Bio::DB::GFF->error,"\n";
-#my $db = Bio::DB::GFF->new(-adaptor=>'dbi::mysql',-dsn => "dbi:mysql:database=$DSN;host=$HOST;port=53307;user=$USER;password=$PASSWORD;") or die "Can't open database: ",Bio::DB::GFF->error,"\n";
 #my $db = Bio::DB::GFF->new(-adaptor=>'dbi::mysql',-dsn => "dbi:mysql:database=$DSN;host=$HOST;port=$HOSTPORT;user=$USER;password=$PASSWORD;") or die "Can't open database: ",Bio::DB::GFF->error,"\n";
 my $db = Bio::DB::GFF->new(-adaptor=>'dbi::mysql',-dsn => "dbi:mysql:database=$DSN;host=$HOST;port=$HOSTPORT;mysql_local_infile=1;user=$USER;password=$PASSWORD;") or die "Can't open database: ",Bio::DB::GFF->error,"\n";
 if ($DEBUG) {
