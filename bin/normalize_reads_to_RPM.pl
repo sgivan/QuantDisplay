@@ -28,7 +28,7 @@ print <<HELP;
 --user
 --password
 --dbhost (default = lewis2.rnet.missouri.edu)
---dbport (default = 53307)
+--dbport (default = 3306)
 --database (default = 'QuantDisplay')
 --fsource (default = 'GA2')
 --justsummary
@@ -49,7 +49,7 @@ $verbose = 1 if ($debug);
 $database ||= 'QuantDisplay';
 $fsource ||= 'GA2';
 $dbhost ||= 'lewis2.rnet.missouri.edu';
-$dbport ||= 53307;
+$dbport ||= 3306;
 
 if ($debug) {
     print "user = '$user'\npassword = '$password'\ndatabase = '$database'\nfsource = '$fsource'\n";
@@ -68,8 +68,8 @@ exit() if ($justsummary);
 
 foreach my $line (@sql) {
     my @vals = split/\s+/, $line;
-    print "$install_path/sql/normalize_read_counts.mysql $user $password $database $vals[4] $fsource $vals[0]\n" if ($verbose);
-    open(NRM, "$install_path/sql/normalize_read_counts.mysql $user $password $database $vals[4] $fsource $vals[0] |") or die "can't open normalize_read_counts.mysql: $!";
+    print "$install_path/sql/normalize_read_counts.mysql $user $password $database $vals[4] $fsource $vals[0] $dbhost\n" if ($verbose);
+    open(NRM, "$install_path/sql/normalize_read_counts.mysql $user $password $database $vals[4] $fsource $vals[0] $dbhost |") or die "can't open normalize_read_counts.mysql: $!";
     my @rslt = <NRM>;
     close(NRM) or warn("couldn't close $install_path/sql/normalize_read_counts.mysql properly: $!");
     print "\@rslt = '@rslt'\n" if ($debug);
