@@ -4,9 +4,9 @@ use strict;
 use Bio::DB::GFF;
 use Getopt::Std;
 use Cwd;
-use vars qw/ $opt_h $opt_f $opt_d $opt_u $opt_p $opt_P $opt_H $opt_b $opt_r $opt_l $opt_a $opt_A $opt_R $opt_v $opt_c $opt_q $opt_s $opt_F /;
+use vars qw/ $opt_h $opt_f $opt_d $opt_u $opt_p $opt_P $opt_H $opt_b $opt_r $opt_l $opt_a $opt_A $opt_R $opt_v $opt_c $opt_q $opt_s $opt_F $opt_m $opt_M $opt_w /;
 $Getopt::Std::STANDARD_HELP_VERSION = 1;
-getopts('hf:du:p:H:b:r:R:l:aAvcq:s:F');
+getopts('hf:du:p:H:b:r:R:l:aAvcq:s:Fm:M:w');
 
 my $user = $opt_u || 'yeast';
 my $password = $opt_p || undef;
@@ -28,6 +28,9 @@ my $queue = $opt_q || 'normal';
 my $stop = $opt_s;
 my $start = $opt_l;
 my $unlink = $opt_F;
+my $window_0 = $opt_m || 50;
+my $window_max = $opt_M || 1000000;
+my $smallwindows = $opt_w;
 
 my $QD_script = "/home/sgivan/projects/QuantDisplay/bin/QuantDisplay_load.pl";
 #my $QD_script = "/home/sgivan/bin/QuantDisplay_load.pl";
@@ -48,7 +51,7 @@ database using bp_fast_load_gff.pl
 
 $usage
 
-ie: QuantDisplay_load_lsf.pl -u brachy_cluster -b QuantDisplay01 -p password -H lewis2.rnet.missouri.edu -f perfect_match -R contig -a -c
+ie: QuantDisplay_load_openlava.pl -u brachy_cluster -b QuantDisplay01 -p password -H lewis2.rnet.missouri.edu -f perfect_match -R contig -a -c
 
 Options
 
@@ -70,9 +73,12 @@ Options
 -P      mysql port (default = 3306)
 -b		mysql database name (default = 'yeast_chr1')
 -c		for each feature, count based on QDcount attribute
+-m      minimum rolling window width
+-M      maximum rolling window width
+-w      use predefined small rolling window range
 -l		with default sorting, start at this reference molecule
 -s		with default sorting, stop at this reference molecule
--q      LSF queue to submit jobs (default = 'normal')
+-q      openlava queue to submit jobs (default = 'normal')
 -F      delete bsub script after submitting job
 
 HELP
@@ -132,14 +138,21 @@ foreach my $refmol (@refmols) {
 	++$cnt;
 #	print "cnt = $cnt\n";
 	
-	my $gffout = $dir . "/" . $refmol . "_QD.gff";
+	my $gffout = $dir . "/" . $refmol . "_$featuretype" . "_QD.gff";
+    my $bsubfile = "$refmol" . "_$featuretype" . "_QD_lsf.sh";
+    print "Outputting data to '$gffout'\n";
 
-	open(OUT,">$refmol" . "_QD_lsf.sh") or die "can't open '$refmol" . "QD_lsf.sh: $!";
+	open(OUT,">$bsubfile") or die "can't open '$bsubfile': $!";
 
     #print OUT "#\$ -o $ENV{HOME}/cluster/QDout$refmol\n#\$ -e $ENV{HOME}/cluster/QDerror$refmol\n#\$ -N $featuretype" . "$refmol\n\n";
 	print OUT "#BSUB -o QD$refmol" . ".o\%J\n#BSUB -e QD$refmol" . ".e\%J\n#BSUB -J " . substr($featuretype,0,4) . "$refmol\n#BSUB -q $queue\n\n";
+
+    #my $optionstring;
+    my $optionstring = "-u $user -p $password -H $dbhost -b $db -f $featuretype -r $refmol -R $refclass -c -o $gffout -X x -m $window_0 -M $window_max";
 	
-	print OUT "$QD_script -u $user -p $password -H $dbhost -b $db -f $featuretype -r $refmol -R $refclass -c -o $gffout -X x\n\n";
+    $optionstring .= " -w" if ($smallwindows);
+    #print OUT "$QD_script -u $user -p $password -H $dbhost -b $db -f $featuretype -r $refmol -R $refclass -c -o $gffout -X x -m $window_0 -M $window_max\n\n";
+	print OUT "$QD_script $optionstring\n\n";
 	
 	close(OUT);
 
@@ -148,21 +161,18 @@ foreach my $refmol (@refmols) {
 	my $qsub_return;
 	unless ($debug) {
 	if ($queues) {
-#			system("qsub -q $queues $refmol" . "_QD_lsf.sh");
 
-			open(QSUB, "qsub -q $queues $refmol" . "_QD_lsf.sh |") or die "can't qsub: $!";
+			open(QSUB, "qsub -q $queues $bsubfile |") or die "can't qsub: $!";
 
 		} else {
-#			system("qsub $refmol" . "_QD_lsf.sh");
 
-			#open(QSUB, "qsub $refmol" . "_QD_lsf.sh |") or die "can't open qsub: $!";
-			open(QSUB, "bsub < $refmol" . "_QD_lsf.sh |") or die "can't open qsub: $!";
+			open(QSUB, "bsub < $bsubfile |") or die "can't open qsub: $!";
 
 		}
 		
 		$qsub_return = <QSUB>;
 		close(QSUB) or warn("can't close queue: $!");
-		unlink("$refmol" . "_QD_lsf.sh") if ($unlink);
+		unlink($bsubfile) if ($unlink);
 		
 #		if (! ($cnt % $job_interval)) {
 		if (0) {

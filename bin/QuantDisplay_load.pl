@@ -22,9 +22,9 @@ use Bio::DB::GFF;
 use Getopt::Std;
 use lib '/home/sgivan/lib/perl5';
 use lib '/home/sgivan/projects/COGDB/lib';
-use vars qw/ $opt_h $opt_f $opt_F $opt_d $opt_u $opt_p $opt_H $opt_b $opt_r $opt_l $opt_a $opt_A $opt_R $opt_v $opt_c $opt_o $opt_i $opt_n $opt_m $opt_M $opt_X /;
+use vars qw/ $opt_h $opt_f $opt_F $opt_d $opt_u $opt_p $opt_H $opt_b $opt_r $opt_l $opt_a $opt_A $opt_R $opt_v $opt_c $opt_o $opt_i $opt_n $opt_m $opt_M $opt_X $opt_w/;
 
-getopts('hf:Fdu:p:H:b:r:R:laAvco:in:m:M:X:');
+getopts('hf:Fdu:p:H:b:r:R:laAvco:in:m:M:X:w');
 
 my $user = $opt_u || 'yeast';
 my $password = $opt_p || undef;
@@ -46,6 +46,7 @@ my $window_0 = $opt_m || 50;
 my $window_max = $opt_M || 1000000;
 #my $fast_algorithm = $opt_F || undef;
 my $algorithm = $opt_X || 's';
+my $smallwindows = $opt_w;
 
 $| = 1;
 
@@ -195,7 +196,11 @@ if ($n_window) {
 # @windows = ($window_0,100,500,1000,5000,10000,25000,50000);
 #  @windows = ($window_0, $window_0 * 2, $window_0 * 5, $window_0 * 10, $window_0 * 50, $window_0 * 100, $window_0 * 250, $window_0 * 500);
 #  @windows = ($window_0, $window_0 * 2, $window_0 * 20, $window_0 * 100, $window_0 * 200, $window_0 * 500);
-  @windows = ($window_0, $window_0 * 2, $window_0 * 20, $window_0 * 100, $window_0 * 200, $window_0 * 500, $window_0 * 2000, $window_0 * 5000);
+    if ($smallwindows) {
+        @windows = ($window_0, $window_0 * 2, $window_0 * 5, $window_0 * 10, $window_0 * 50, $window_0 * 100, $window_0 * 500, $window_0 * 1000);
+    } else {
+        @windows = ($window_0, $window_0 * 2, $window_0 * 20, $window_0 * 100, $window_0 * 200, $window_0 * 500, $window_0 * 2000, $window_0 * 5000);
+    }
 }
 
 my $refmol_count = 0;
